@@ -10,9 +10,9 @@ Advances in neural information processing systems. 2014.
 import numpy as np
 from chainer import Chain, Variable, cuda, functions, links, optimizer, optimizers, serializers
 import datetime
-from filer2 import Filer
 import glob
 import random
+import argparse
 
 
 class LSTM_Encoder(Chain):
@@ -70,7 +70,7 @@ class LSTM_Decoder(Chain):
         return t, c, h
 
 class Seq2Seq(Chain):
-    def __init__(self, vocab_size, embed_size, hidden_size, batch_size, flag_gpu=True):
+    def __init__(self, vocab_size, embed_size, hidden_size, batch_size, gpu):
         """
         Seq2Seqの初期化
         :param vocab_size: 語彙サイズ
@@ -90,7 +90,7 @@ class Seq2Seq(Chain):
         self.hidden_size = hidden_size
         self.batch_size = batch_size
         # GPUで計算する場合はcupyをCPUで計算する場合はnumpyを使う
-        if flag_gpu:
+        if gpu>=0:
             self.ARR = cuda.cupy
         else:
             self.ARR = np
@@ -197,41 +197,57 @@ def make_minibatch(minibatch):
     dec_words = dec_words.T
     return enc_words, dec_words
 
-def train():
+def train(infile,indict,outfile,gpu,embed,hidden,batch,epoch):
+    dict={}
     # 辞書の読み込み
-    word_to_id = Filer.readdump(DICT_PATH)
+    with open(indict,"r") as f:
+        for line in f.readlines():
+            items=line.replace("\n","").split("\t")
+            dict[items[0]]=items[1]
+
+    data=[]
+    # データの読み込み
+    with open(infile,"r") as f:
+        for line in f.readlines():
+            wakati=[]
+            for str in line.replace("\n","").split("\t"):
+                w=str.split(" ") #[]
+                wakati.append(w) # [[],[]]
+            data.append(wakati)  #[[[],[]],[[],[]],...
+
+    # flatten
+    # http://d.hatena.ne.jp/xef/20121027/p2
+    #from itertools import chain
+    #words=list(chain.from_iterable(dict))
+
     # 語彙数
-    vocab_size = len(word_to_id)
+    vocab_size = len(dict.keys())
     # モデルのインスタンス化
     model = Seq2Seq(vocab_size=vocab_size,
-                    embed_size=EMBED_SIZE,
-                    hidden_size=HIDDEN_SIZE,
-                    batch_size=BATCH_SIZE,
-                    flag_gpu=FLAG_GPU)
+                    embed_size=embed,
+                    hidden_size=hidden,
+                    batch_size=batch,
+                    gpu=gpu)
     model.reset()
     # GPUのセット
-    if FLAG_GPU:
+    if gpu>=0:
         ARR = cuda.cupy
-        cuda.get_device(0).use()
-        model.to_gpu(0)
+        cuda.get_device_from_id(gpu).use()
+        model.to_gpu(gpu)
     else:
         ARR = np
 
     # 学習開始
-    for epoch in range(EPOCH_NUM):
+    for epoch in range(epoch):
         # ファイルのパスの取得
-        filepath = glob.glob(INPUT_PATH)
         # エポックごとにoptimizerの初期化
         opt = optimizers.Adam()
         opt.setup(model)
         opt.add_hook(optimizer.GradientClipping(5))
-        for path in filepath:
-            # ファイルの読み込み
-            data = Filer.readdump(path)
-            print (path)
-            random.shuffle(data)
-            for num in range(len(data)//BATCH_SIZE):
-                minibatch = data[num*BATCH_SIZE: (num+1)*BATCH_SIZE]
+
+        random.shuffle(data)
+        for num in range(len(data)//batch):
+                minibatch = data[num*batch: (num+1)*batch]
                 # 読み込み用のデータ作成
                 enc_words, dec_words = make_minibatch(minibatch)
                 # modelのリセット
@@ -244,35 +260,43 @@ def train():
                 # 学習
                 total_loss.backward()
                 opt.update()
-                opt.zero_grads()
+                #opt.zero_grads()
                 # print (datetime.datetime.now())
         print ('Epoch %s 終了' % (epoch+1))
-        SlackBot.post_message(username=username,
-                          text='Epoch %s 終了' % (epoch+1),
-                          icon_emoji=':thumbsup:')
-        outputpath = OUTPUT_PATH%(EMBED_SIZE, HIDDEN_SIZE, BATCH_SIZE, epoch+1)
-        serializers.save_hdf5(outputpath, model)
 
 
-INPUT_PATH = '../file/train/ntcir/que_ans_id.dump'
-OUTPUT_PATH = '../file/model/seq2seq/ntcir/EMBED%s_HIDDEN%s_BATCH%s_EPOCH%s.weights'
-DICT_PATH = '../file/train/ntcir/word_to_id.dump'
-FLAG_GPU = True
+    serializers.save_hdf5(outfile, model)
 
-EMBED_SIZE = 300
-HIDDEN_SIZE = 150
-BATCH_SIZE = 40
-EPOCH_NUM = 30
+def test(infile,dict,model,gpu):
+    pass
 
-username='Seq2Seq'
+def main():
+    p = argparse.ArgumentParser(description='seq2seq')
 
-print ('開始: ', datetime.datetime.now())
-try:
-    train()
-except:
-    SlackBot.post_message(username=username,
-                          text='エラー、下手くそ！！',
-                          icon_emoji=':troll:')
-    raise
 
-print ('終了: ', datetime.datetime.now())
+    p.add_argument('-m','--mode', default="train",help='train or test')
+    p.add_argument('-i','--infile', default="/Users/admin/Downloads/chat/txt/init100.txt",help='input file')
+    p.add_argument('-d','--dict', default="/Users/admin/Downloads/chat/txt/init100.dict",help='dict file')
+    p.add_argument('--model',default="/Users/admin/Downloads/chat/txt/init100.model", help="output file when train mode ,input file when test mode")
+    p.add_argument('-g','--gpu',default=-1)
+    p.add_argument('--embed',default=300, help="only train mode")
+    p.add_argument('--hidden',default=150, help="only train mode")
+    p.add_argument('--batch',default=40, help="only train mode")
+    p.add_argument('--epoch',default=1000, help="only train mode")
+    args = p.parse_args()
+
+    print ('開始: ', datetime.datetime.now())
+    try:
+        if args.mode == "train":
+            train(args.infile,args.dict,args.model,args.gpu,args.embed,args.hidden,args.batch,args.epoch)
+        else:
+            test(args.infile,args.dict,args.model,args.gpu)
+    except:
+        import traceback
+        print( traceback.format_exc())
+
+    print ('終了: ', datetime.datetime.now())
+
+
+if __name__ == '__main__':
+    main()
