@@ -10,9 +10,14 @@ Advances in neural information processing systems. 2014.
 import numpy as np
 from chainer import Chain, Variable, cuda, functions, links, optimizer, optimizers, serializers
 import datetime
-import glob
 import random
 import argparse
+import sampleSeq2Seq_data
+
+EMBED=300
+HIDDEN=150
+BATCH=40
+EPOCH=20
 
 
 class LSTM_Encoder(Chain):
@@ -171,6 +176,10 @@ def forward_test(enc_words, model, ARR):
     enc_words = [Variable(ARR.array(row, dtype='int32')) for row in enc_words]
     model.encode(enc_words)
     t = Variable(ARR.array([0], dtype='int32'))
+    y = model.decode(t)
+    label = y.data.argmax()
+    ret.append(label)
+
     counter = 0
     while counter < 50:
         y = model.decode(t)
@@ -197,14 +206,7 @@ def make_minibatch(minibatch):
     dec_words = dec_words.T
     return enc_words, dec_words
 
-def train(infile,indict,outfile,gpu,embed,hidden,batch,epoch):
-    dict={}
-    # 辞書の読み込み
-    with open(indict,"r") as f:
-        for line in f.readlines():
-            items=line.replace("\n","").split("\t")
-            dict[items[0]]=items[1]
-
+def load_data(infile):
     data=[]
     # データの読み込み
     with open(infile,"r") as f:
@@ -214,11 +216,21 @@ def train(infile,indict,outfile,gpu,embed,hidden,batch,epoch):
                 w=str.split(" ") #[]
                 wakati.append(w) # [[],[]]
             data.append(wakati)  #[[[],[]],[[],[]],...
+    return(data)
 
-    # flatten
-    # http://d.hatena.ne.jp/xef/20121027/p2
-    #from itertools import chain
-    #words=list(chain.from_iterable(dict))
+def load_dict(indict):
+    dict={}
+    # 辞書の読み込み
+    with open(indict,"r") as f:
+        for line in f.readlines():
+            items=line.replace("\n","").split("\t")
+            dict[items[0]]=int(items[1])
+    return(dict)
+
+def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
+
+    dict=load_dict(dictfile)
+    data=load_data(datafile)
 
     # 語彙数
     vocab_size = len(dict.keys())
@@ -265,32 +277,74 @@ def train(infile,indict,outfile,gpu,embed,hidden,batch,epoch):
         print ('Epoch %s 終了' % (epoch+1))
 
 
-    serializers.save_hdf5(outfile, model)
+    serializers.save_hdf5(modelfile, model)
 
-def test(infile,dict,model,gpu):
-    pass
+def test(datafile,dictfile,modelfile,gpu):
+
+    dict=load_dict(dictfile)
+
+
+    # モデルのインスタンス化
+    model = Seq2Seq(vocab_size=len(dict.keys()),
+                    embed_size=EMBED,
+                    hidden_size=HIDDEN,
+                    batch_size=1,
+                    gpu=gpu)
+    serializers.load_hdf5(modelfile,model)
+
+    data=[]  # [["a","b",..],["c","d",..],..]
+    with open(datafile,"r") as f:
+        for line in f.readlines():
+            items=sampleSeq2Seq_data.wakati_list(line,dict)
+            data.append(items)
+
+
+    if gpu>=0:
+        ARR = cuda.cupy
+        cuda.get_device_from_id(gpu).use()
+        model.to_gpu(gpu)
+    else:
+        ARR = np
+
+    # change key and val,
+    # http://www.lifewithpython.com/2014/03/python-invert-keys-values-in-dict.html
+    dict_inv={v:k for k,v in dict.items()}
+    for dt in data:
+        enc_word=np.array([dt],dtype="int32").T
+        predict=forward_test(enc_words=enc_word,model=model,ARR=ARR)
+        inword=to_word(dt,dict_inv)
+        outword=to_word(predict,dict_inv)
+        print("input:"+str(inword)+",output:"+str(outword))
+
+def to_word(id_list,dict):
+    res=[]
+    for id in id_list:
+        res.append(dict[id])
+    return (res)
 
 def main():
     p = argparse.ArgumentParser(description='seq2seq')
 
 
-    p.add_argument('-m','--mode', default="train",help='train or test')
-    p.add_argument('-i','--infile', default="/Users/admin/Downloads/chat/txt/init100.txt",help='input file')
-    p.add_argument('-d','--dict', default="/Users/admin/Downloads/chat/txt/init100.dict",help='dict file')
-    p.add_argument('--model',default="/Users/admin/Downloads/chat/txt/init100.model", help="output file when train mode ,input file when test mode")
+    p.add_argument('--mode', default="test",help='train or test')
+    p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    #p.add_argument('--mode', default="train",help='train or test')
+    #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--dict', default="/Users/admin/Downloads/chat/txt/init100.dict",help='word dictionay file, word and word id ')
+    p.add_argument('--model',default="/Users/admin/Downloads/chat/txt/init100.model", help="in the case of train mode this file is output,in the case of test mode this file is input")
     p.add_argument('-g','--gpu',default=-1)
-    p.add_argument('--embed',default=300, help="only train mode")
-    p.add_argument('--hidden',default=150, help="only train mode")
-    p.add_argument('--batch',default=40, help="only train mode")
-    p.add_argument('--epoch',default=1000, help="only train mode")
+    p.add_argument('--embed',default=EMBED, help="only train mode")
+    p.add_argument('--hidden',default=HIDDEN, help="only train mode")
+    p.add_argument('--batch',default=BATCH, help="only train mode")
+    p.add_argument('--epoch',default=EPOCH, help="only train mode")
     args = p.parse_args()
 
     print ('開始: ', datetime.datetime.now())
     try:
         if args.mode == "train":
-            train(args.infile,args.dict,args.model,args.gpu,args.embed,args.hidden,args.batch,args.epoch)
+            train(args.data,args.dict,args.model,args.gpu,args.embed,args.hidden,args.batch,args.epoch)
         else:
-            test(args.infile,args.dict,args.model,args.gpu)
+            test(args.data,args.dict,args.model,args.gpu)
     except:
         import traceback
         print( traceback.format_exc())

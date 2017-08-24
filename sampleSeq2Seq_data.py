@@ -28,7 +28,6 @@ def split(infile,outfile,dict):
     for turn in js["turns"]:
         lines.append(unicodedata.normalize("NFKC", turn["utterance"]))
 
-
     with open(outfile,"a") as f:
         pline=None
         for line in lines:
@@ -37,19 +36,29 @@ def split(infile,outfile,dict):
                 f.write(wakati(pline,dict)+"\t"+wakati(line,dict)+"\n")
             pline=line
 
-def wakati(s,dict):
+def wakati_list(s,dict):
     tagger = MeCab.Tagger("-Owakati")
+    s = s.replace("\n","")
     result = tagger.parse(s)
     result = result.replace("\n","").split(" ")
+    result.remove("")
 
     def word_to_id(word):
         if word not in dict:
             dict[word]=len(dict)
         return dict[word]
+    # http://hiroto1979.hatenablog.jp/entry/2016/02/10/112352
+    #res=map(word_to_id,result)
+    res = [word_to_id(i) for i in result]
+    return(res)
 
-    res=map(word_to_id,result)
+def wakati(s,dict):
+    res=wakati_list(s,dict)
     ret=map(str,res)
-    return(" ".join(ret))
+    s=" ".join(ret)
+    return(s)
+
+
 
 def main():
     p = argparse.ArgumentParser(description='corpus spliter')
