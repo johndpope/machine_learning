@@ -16,7 +16,7 @@
 
 python sampleSeq2Seq.py --dict ../../data/chat/txt/dict.dat --data ../../data/chat/txt/chat.dat --mode train -g 0 --epoch 1000 
 aws s3 cp --recursive ../../data/chat/txt  s3://kyodonews.advanced/utsubo/nlp/chat
-for f in *.o*;do
+for f in *.txt;do
   aws s3 cp $f  s3://kyodonews.advanced/utsubo/nlp/chat/
 done
-sudo shutdown -h now
+#sudo shutdown -h now
