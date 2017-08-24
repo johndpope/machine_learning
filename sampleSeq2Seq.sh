@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #PBS -q G-SINGLE
-#PBS -N seq2seq_data
+#PBS -N seq2seq
 #PBS -l select=1
 #PBS -j oe
 
