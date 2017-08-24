@@ -218,18 +218,11 @@ def load_data(infile):
             data.append(wakati)  #[[[],[]],[[],[]],...
     return(data)
 
-def load_dict(indict):
-    dict={}
-    # 辞書の読み込み
-    with open(indict,"r") as f:
-        for line in f.readlines():
-            items=line.replace("\n","").split("\t")
-            dict[items[0]]=int(items[1])
-    return(dict)
+
 
 def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
 
-    dict=load_dict(dictfile)
+    dict=sampleSeq2Seq_data.load_dict(dictfile)
     data=load_data(datafile)
 
     # 語彙数
@@ -281,7 +274,7 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
 
 def test(datafile,dictfile,modelfile,gpu):
 
-    dict=load_dict(dictfile)
+    dict=sampleSeq2Seq_data.load_dict(dictfile)
 
 
     # モデルのインスタンス化
@@ -326,10 +319,10 @@ def main():
     p = argparse.ArgumentParser(description='seq2seq')
 
 
-    p.add_argument('--mode', default="test",help='train or test')
-    p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
-    #p.add_argument('--mode', default="train",help='train or test')
-    #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    #p.add_argument('--mode', default="test",help='train or test')
+    #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--mode', default="train",help='train or test')
+    p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
     p.add_argument('--dict', default="/Users/admin/Downloads/chat/txt/init100.dict",help='word dictionay file, word and word id ')
     p.add_argument('--model',default="/Users/admin/Downloads/chat/txt/init100.model", help="in the case of train mode this file is output,in the case of test mode this file is input")
     p.add_argument('-g','--gpu',default=-1)

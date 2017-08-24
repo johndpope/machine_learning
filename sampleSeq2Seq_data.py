@@ -7,20 +7,39 @@ import MeCab
 import unicodedata
 import os
 
-def run(indir,outfile,outdict):
-    dict={}# {"単語":0,..}
-    if os.path.exists(outfile):
+def run(indir,indic,outfile,outdict,mode,append):
+    dict=load_dict(indic)
+    if len(dict.keys())<=0:
+        dict={"<s>":0,"</s>":1}# {"単語":0,..}  <s>:始端記号, </s>:終端記号
+
+    if append is True and os.path.exists(outfile):
         os.remove(outfile)
 
     files=os.listdir(indir)
     for file in files:
-        split(indir+"/"+file,outfile,dict)
+        if mode == "chat":
+            chat_analyze(indir+"/"+file,outfile,dict)
+        elif mode =="nuc":
+            nuc_analyze(indir+"/"+file,outfile,dict)
 
     with open(outdict,"w") as f:
         for key in dict.keys():
             f.write(str(key)+"\t"+str(dict[key])+"\n")
 
-def split(infile,outfile,dict):
+
+def nuc_analyze(infile,outfile,dict):
+    with open(infile,"r") as f:
+        sentence=""
+        for line in f.readlines():
+            if line.find("＠")==0 or line.find("％")==0:
+                continue
+            if line.index("：")>=0:
+                sentence=line.split("：")[1]
+            else:
+                sentence=sentence+line
+    pass
+
+def chat_analyze(infile,outfile,dict):
     with open(infile,"r") as f:
         js=json.load(f)
     lines=[]
@@ -36,6 +55,19 @@ def split(infile,outfile,dict):
                 f.write(wakati(pline,dict)+"\t"+wakati(line,dict)+"\n")
             pline=line
 
+def load_dict(indict):
+
+    dict={}
+    if os.path.exists(indict) is False:
+        return(dict)
+
+    # 辞書の読み込み
+    with open(indict,"r") as f:
+        for line in f.readlines():
+            items=line.replace("\n","").split("\t")
+            dict[items[0]]=int(items[1])
+    return(dict)
+
 def wakati_list(s,dict):
     tagger = MeCab.Tagger("-Owakati")
     s = s.replace("\n","")
@@ -50,6 +82,13 @@ def wakati_list(s,dict):
     # http://hiroto1979.hatenablog.jp/entry/2016/02/10/112352
     #res=map(word_to_id,result)
     res = [word_to_id(i) for i in result]
+
+    res.insert(0,dict["<s>"]) # 始端記号
+    res.append(dict["</s>"]) # 終端記号
+    # http://d.hatena.ne.jp/xef/20121027/p2
+    # flatten
+    #from itertools import chain
+    #return(list(chain.from_iterable(ret)))
     return(res)
 
 def wakati(s,dict):
@@ -63,13 +102,16 @@ def wakati(s,dict):
 def main():
     p = argparse.ArgumentParser(description='corpus spliter')
 
-    p.add_argument('-i','--indir', default="/Users/admin/Downloads/chat/json/init100/",help='input file')
-    p.add_argument('-o','--outfile',default="/Users/admin/Downloads/chat/txt/init100.txt")
-    p.add_argument('-d','--outdict',default="/Users/admin/Downloads/chat/txt/init100.dict")
-
+    #p.add_argument('--indir', default="/Users/admin/Downloads/chat/json/init100/",help='input file')
+    p.add_argument('--indir', default="/Users/admin/Downloads/chat/json/rest1046/",help='input file')
+    p.add_argument('--append', default=True, help="append outfile if exists")
+    p.add_argument('--mode', default="chat", help="chat or nuc")
+    p.add_argument('--indict',default="/Users/admin/Downloads/chat/txt/init100.dict")
+    p.add_argument('--outfile',default="/Users/admin/Downloads/chat/txt/init100.txt")
+    p.add_argument('--outdict',default="/Users/admin/Downloads/chat/txt/init100.dict")
     args = p.parse_args()
 
-    run(args.indir,args.outfile,args.outdict)
+    run(args.indir,args.indict,args.outfile,args.outdict,args.mode,args.append)
 
 if __name__ == '__main__':
     main()
