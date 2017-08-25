@@ -6,7 +6,7 @@
 #PBS -j oe
 
 . ~/.bashrc
-if [ "#PBS_O_WORKDIR" != "" ];then
+if [ "$PBS_O_WORKDIR" != "" ];then
   cd $PBS_O_WORKDIR
   export PATH=${PBS_O_PATH}
   export LDPATH=/work/opt/glibc-2.17/lib/ld-linux-x86-64.so.2:$LD_LIBRARY_PATH
