@@ -269,7 +269,7 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
                 # print (datetime.datetime.now())
         print ('Epoch %s 終了' % (epoch+1))
 
-
+        serializers.save_hdf5(modelfile+"."+str(epoch), model)
     serializers.save_hdf5(modelfile, model)
 
 def test(datafile,dictfile,modelfile,gpu):
@@ -322,9 +322,9 @@ def main():
     #p.add_argument('--mode', default="test",help='train or test')
     #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
     p.add_argument('--mode', default="train",choices=["train","test"], help='train or test')
-    p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
-    p.add_argument('--dict', default="/Users/admin/Downloads/chat/txt/init100.dict",help='word dictionay file, word and word id ')
-    p.add_argument('--model',default="/Users/admin/Downloads/chat/txt/init100.model",help="in the case of train mode this file is output,in the case of test mode this file is input")
+    p.add_argument('--data', default="/Volumes/DATA/data/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--dict', default="/Volumes/DATA/data/chat/txt/init100.dict",help='word dictionay file, word and word id ')
+    p.add_argument('--model',default="/Volumes/DATA/data/chat/txt/init100.model",help="in the case of train mode this file is output,in the case of test mode this file is input")
     p.add_argument('-g','--gpu',default=-1, type=int)
     p.add_argument('--embed',default=EMBED, type=int,help="only train mode")
     p.add_argument('--hidden',default=HIDDEN, type=int, help="only train mode")
