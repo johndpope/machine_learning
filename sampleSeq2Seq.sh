@@ -19,4 +19,4 @@ aws s3 cp --recursive ../../data/chat/txt  s3://kyodonews.advanced/utsubo/nlp/ch
 for f in *.txt;do
   aws s3 cp $f  s3://kyodonews.advanced/utsubo/nlp/chat/
 done
-#sudo shutdown -h now
+sudo shutdown -h now
