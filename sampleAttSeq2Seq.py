@@ -7,9 +7,21 @@ arXiv preprint arXiv:1409.0473 (2014).
 """
 
 import numpy as np
-from chainer import Chain, Variable, cuda, functions, links
+from chainer import Chain, Variable, cuda, functions, links,optimizer, optimizers, serializers
 
-from sampleSeq2Sep import LSTM_Encoder
+from sampleSeq2Seq import LSTM_Encoder
+import sampleSeq2Seq
+import random
+import datetime
+import argparse
+import sampleSeq2Seq_data
+
+EMBED=300
+HIDDEN=150
+BATCH=40
+EPOCH=20
+
+
 
 
 class Att_LSTM_Decoder(Chain):
@@ -57,7 +69,7 @@ class Att_LSTM_Decoder(Chain):
 
 
 class Attention(Chain):
-    def __init__(self, hidden_size, flag_gpu):
+    def __init__(self, hidden_size, gpu):
         """
         Attentionのインスタンス化
         :param hidden_size: 隠れ層のサイズ
@@ -76,7 +88,7 @@ class Attention(Chain):
         # 隠れ層のサイズを記憶
         self.hidden_size = hidden_size
         # GPUを使う場合はcupyを使わないときはnumpyを使う
-        if flag_gpu:
+        if gpu>=0:
             self.ARR = cuda.cupy
         else:
             self.ARR = np
@@ -117,7 +129,7 @@ class Attention(Chain):
 
 
 class Att_Seq2Seq(Chain):
-    def __init__(self, vocab_size, embed_size, hidden_size, batch_size, flag_gpu=True):
+    def __init__(self, vocab_size, embed_size, hidden_size, batch_size, gpu=-1):
         """
         Seq2Seq + Attentionのインスタンス化
         :param vocab_size: 語彙数のサイズ
@@ -132,7 +144,7 @@ class Att_Seq2Seq(Chain):
             # 逆向きのEncoder
             b_encoder = LSTM_Encoder(vocab_size, embed_size, hidden_size),
             # Attention Model
-            attention = Attention(hidden_size, flag_gpu),
+            attention = Attention(hidden_size, gpu),
             # Decoder
             decoder = Att_LSTM_Decoder(vocab_size, embed_size, hidden_size)
         )
@@ -142,7 +154,7 @@ class Att_Seq2Seq(Chain):
         self.batch_size = batch_size
 
         # GPUを使うときはcupy、使わないときはnumpy
-        if flag_gpu:
+        if gpu>=0:
             self.ARR = cuda.cupy
         else:
             self.ARR = np
@@ -187,7 +199,7 @@ class Att_Seq2Seq(Chain):
         """
         att_f, att_b = self.attention(self.fs, self.bs, self.h)
         t, self.c, self.h = self.decoder(w, self.c, self.h, att_f, att_b)
-        lambda_ = functions.sigmoid(self.predictor(self.h))
+        #lambda_ = functions.sigmoid(self.predictor(self.h))
         return t
 
     def reset(self):
@@ -240,3 +252,128 @@ def forward_test(enc_words, model, ARR):
         if label == 1:
             counter = 50
     return ret
+
+
+
+def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
+
+    dict=sampleSeq2Seq_data.load_dict(dictfile)
+    data=sampleSeq2Seq.load_data(datafile)
+
+    # 語彙数
+    vocab_size = len(dict.keys())
+    # モデルのインスタンス化
+    model = Att_Seq2Seq(vocab_size=vocab_size,
+                    embed_size=embed,
+                    hidden_size=hidden,
+                    batch_size=batch,
+                    gpu=gpu)
+    model.reset()
+    # GPUのセット
+    if gpu>=0:
+        ARR = cuda.cupy
+        cuda.get_device_from_id(gpu).use()
+        model.to_gpu(gpu)
+    else:
+        ARR = np
+
+    # 学習開始
+    for epoch in range(epoch):
+        # ファイルのパスの取得
+        # エポックごとにoptimizerの初期化
+        opt = optimizers.Adam()
+        opt.setup(model)
+        opt.add_hook(optimizer.GradientClipping(5))
+
+        random.shuffle(data)
+        for num in range(len(data)//batch):
+                minibatch = data[num*batch: (num+1)*batch]
+                # 読み込み用のデータ作成
+                enc_words, dec_words = sampleSeq2Seq.make_minibatch(minibatch)
+                # modelのリセット
+                model.reset()
+                # 順伝播
+                total_loss = forward(enc_words=enc_words,
+                                     dec_words=dec_words,
+                                     model=model,
+                                     ARR=ARR)
+                # 学習
+                total_loss.backward()
+                opt.update()
+                #opt.zero_grads()
+                # print (datetime.datetime.now())
+        print ('Epoch %s 終了' % (epoch+1))
+
+
+    serializers.save_hdf5(modelfile, model)
+
+def test(datafile,dictfile,modelfile,gpu):
+
+    dict=sampleSeq2Seq_data.load_dict(dictfile)
+
+
+    # モデルのインスタンス化
+    model = Att_Seq2Seq(vocab_size=len(dict.keys()),
+                    embed_size=EMBED,
+                    hidden_size=HIDDEN,
+                    batch_size=1,
+                    gpu=gpu)
+    serializers.load_hdf5(modelfile,model)
+
+    data=[]  # [["a","b",..],["c","d",..],..]
+    with open(datafile,"r") as f:
+        for line in f.readlines():
+            items=sampleSeq2Seq_data.wakati_list(line,dict)
+            data.append(items)
+
+
+    if gpu>=0:
+        ARR = cuda.cupy
+        cuda.get_device_from_id(gpu).use()
+        model.to_gpu(gpu)
+    else:
+        ARR = np
+
+    # change key and val,
+    # http://www.lifewithpython.com/2014/03/python-invert-keys-values-in-dict.html
+    dict_inv={v:k for k,v in dict.items()}
+    for dt in data:
+        enc_word=np.array([dt],dtype="int32").T
+        predict=forward_test(enc_words=enc_word,model=model,ARR=ARR)
+        inword=sampleSeq2Seq.to_word(dt,dict_inv)
+        outword=sampleSeq2Seq.to_word(predict,dict_inv)
+        print("input:"+str(inword)+",output:"+str(outword))
+
+
+def main():
+    p = argparse.ArgumentParser(description='seq2seq')
+
+
+    #p.add_argument('--mode', default="test",help='train or test')
+    #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--mode', default="train",help='train or test')
+    p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--dict', default="/Users/admin/Downloads/chat/txt/init100.dict",help='word dictionay file, word and word id ')
+    p.add_argument('--model',default="/Users/admin/Downloads/chat/txt/att.model", help="in the case of train mode this file is output,in the case of test mode this file is input")
+    p.add_argument('-g','--gpu',default=-1)
+    p.add_argument('--embed',default=EMBED, help="only train mode")
+    p.add_argument('--hidden',default=HIDDEN, help="only train mode")
+    p.add_argument('--batch',default=BATCH, help="only train mode")
+    p.add_argument('--epoch',default=EPOCH, help="only train mode")
+    args = p.parse_args()
+
+    print ('開始: ', datetime.datetime.now())
+    try:
+        if args.mode == "train":
+            train(args.data,args.dict,args.model,args.gpu,args.embed,args.hidden,args.batch,args.epoch)
+        else:
+            test(args.data,args.dict,args.model,args.gpu)
+    except:
+        import traceback
+        print( traceback.format_exc())
+
+    print ('終了: ', datetime.datetime.now())
+
+
+if __name__ == '__main__':
+    main()
