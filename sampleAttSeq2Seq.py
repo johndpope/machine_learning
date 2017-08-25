@@ -304,8 +304,7 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
                 # print (datetime.datetime.now())
         print ('Epoch %s 終了' % (epoch+1))
 
-
-    serializers.save_hdf5(modelfile, model)
+        serializers.save_hdf5(modelfile+"."+str(epoch), model)
 
 def test(datafile,dictfile,modelfile,gpu):
 
