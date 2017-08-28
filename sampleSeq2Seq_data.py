@@ -10,7 +10,7 @@ import os
 def run(indir,indic,outfile,outdict,mode,append):
     dict=load_dict(indic)
     if len(dict.keys())<=0:
-        dict={"<s>":0,"</s>":1}# {"単語":0,..}  <s>:始端記号, </s>:終端記号
+        dict={"</s>":0}# {"単語":0,..}  </s>:終端記号
 
     if append is True and os.path.exists(outfile):
         os.remove(outfile)
@@ -26,7 +26,7 @@ def run(indir,indic,outfile,outdict,mode,append):
         for key in dict.keys():
             f.write(str(key)+"\t"+str(dict[key])+"\n")
 
-
+# TODO
 def nuc_analyze(infile,outfile,dict):
     with open(infile,"r") as f:
         sentence=""
@@ -54,7 +54,7 @@ def chat_analyze(infile,outfile,dict):
         for line in lines:
             line=line.replace("\n","")
             if pline is not None:
-                f.write(wakati(pline,dict)+"\t"+wakati(line,dict)+"\n")
+                f.write(wakati_encode(pline,dict)+"\t"+wakati_decode(line,dict)+"\n")
             pline=line
 
 def load_dict(indict):
@@ -85,21 +85,26 @@ def wakati_list(s,dict):
     #res=map(word_to_id,result)
     res = [word_to_id(i) for i in result]
 
-    res.insert(0,dict["<s>"]) # 始端記号
-    res.append(dict["</s>"]) # 終端記号
+    #res.append(dict["</s>"]) # 終端記号
     # http://d.hatena.ne.jp/xef/20121027/p2
     # flatten
     #from itertools import chain
     #return(list(chain.from_iterable(ret)))
     return(res)
 
-def wakati(s,dict):
+def wakati_encode(s,dict):
     res=wakati_list(s,dict)
+    res.reverse()
     ret=map(str,res)
     s=" ".join(ret)
     return(s)
 
-
+def wakati_decode(s,dict):
+    res=wakati_list(s,dict)
+    res.insert(0,dict["</s>"]) # 終端記号
+    ret=map(str,res)
+    s=" ".join(ret)
+    return(s)
 
 def main():
     p = argparse.ArgumentParser(description='corpus spliter')
