@@ -6,10 +6,21 @@ Cao, Ziqiang, et al.
 arXiv preprint arXiv:1611.09235 (2016).
 """
 import numpy as np
-from chainer import Chain, Variable, cuda, functions, links
+from chainer import Chain, Variable, cuda, functions, links, optimizer, optimizers, serializers
 
-from sampleSeq2Sep import LSTM_Encoder
+from sampleSeq2Seq import LSTM_Encoder
 from sampleAttSeq2Seq import Attention, Att_LSTM_Decoder
+import argparse
+import datetime
+import sampleSeq2Seq_data
+import random
+
+EMBED=300
+HIDDEN=150
+BATCH=40
+EPOCH=20
+
+
 
 
 class Copy_Attention(Attention):
@@ -55,14 +66,14 @@ class Copy_Attention(Attention):
 
 
 class Copy_Seq2Seq(Chain):
-    def __init__(self, vocab_size, embed_size, hidden_size, batch_size, flag_gpu=True):
+    def __init__(self, vocab_size, embed_size, hidden_size, batch_size, gpu=-1):
         super(Copy_Seq2Seq, self).__init__(
             # 順向きのEncoder
             f_encoder = LSTM_Encoder(vocab_size, embed_size, hidden_size),
             # 逆向きのEncoder
             b_encoder = LSTM_Encoder(vocab_size, embed_size, hidden_size),
             # Attention Model
-            attention=Copy_Attention(hidden_size, flag_gpu),
+            attention=Copy_Attention(hidden_size, gpu),
             # Decoder
             decoder=Att_LSTM_Decoder(vocab_size, embed_size, hidden_size),
             # λの重みを計算するためのネットワーク
@@ -72,7 +83,7 @@ class Copy_Seq2Seq(Chain):
         self.embed_size = embed_size
         self.hidden_size = hidden_size
         self.batch_size = batch_size
-        if flag_gpu:
+        if gpu>=0:
             self.ARR = cuda.cupy
         else:
             self.ARR = np
@@ -243,3 +254,165 @@ def forward_test(enc_words, model, ARR):
         if label == 1:
             counter = 50
     return ret, ret_mode
+
+
+
+
+
+
+# trainの関数
+def make_minibatch(minibatch):
+    # enc_wordsの作成
+    enc_words = [row[0] for row in minibatch]
+    enc_max = np.max([len(row) for row in enc_words])
+    enc_words = np.array([[-1]*(enc_max - len(row)) + row for row in enc_words], dtype='int32')
+    enc_words = enc_words.T
+
+    # dec_wordsの作成
+    dec_words = [row[1] for row in minibatch]
+    dec_max = np.max([len(row) for row in dec_words])
+    dec_words = np.array([row + [-1]*(dec_max - len(row)) for row in dec_words], dtype='int32')
+    dec_words = dec_words.T
+    return enc_words, dec_words
+
+def load_data(infile):
+    data=[]
+    # データの読み込み
+    with open(infile,"r") as f:
+        for line in f.readlines():
+            wakati=[]
+            for str in line.replace("\n","").split("\t"):
+                w=str.split(" ") #[]
+                wakati.append(w) # [[],[]]
+            data.append(wakati)  #[[[],[]],[[],[]],...
+    return(data)
+
+def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
+
+    dict=sampleSeq2Seq_data.load_dict(dictfile)
+    data=load_data(datafile)
+
+    # 語彙数
+    vocab_size = len(dict.keys())
+    # モデルのインスタンス化
+    model = Copy_Seq2Seq(vocab_size=vocab_size,
+                    embed_size=embed,
+                    hidden_size=hidden,
+                    batch_size=batch,
+                    gpu=gpu)
+    model.reset()
+    # GPUのセット
+    if gpu>=0:
+        ARR = cuda.cupy
+        cuda.get_device_from_id(gpu).use()
+        model.to_gpu(gpu)
+    else:
+        ARR = np
+
+    # 学習開始
+    for epoch in range(epoch):
+        # ファイルのパスの取得
+        # エポックごとにoptimizerの初期化
+        opt = optimizers.Adam()
+        opt.setup(model)
+        opt.add_hook(optimizer.GradientClipping(5))
+
+        random.shuffle(data)
+        for num in range(len(data)//batch):
+                minibatch = data[num*batch: (num+1)*batch]
+                # 読み込み用のデータ作成
+                enc_words, dec_words = make_minibatch(minibatch)
+                # modelのリセット
+                model.reset()
+                # 順伝播
+                total_loss = forward(enc_words=enc_words,
+                                     dec_words=dec_words,
+                                     model=model,
+                                     ARR=ARR)
+                # 学習
+                total_loss.backward()
+                opt.update()
+                #opt.zero_grads()
+                # print (datetime.datetime.now())
+        print ('Epoch %s 終了' % (epoch+1))
+
+        serializers.save_hdf5(modelfile+"."+str(epoch), model)
+    serializers.save_hdf5(modelfile, model)
+
+def test(datafile,dictfile,modelfile,gpu):
+
+    dict=sampleSeq2Seq_data.load_dict(dictfile)
+
+
+    # モデルのインスタンス化
+    model = Copy_Seq2Seq(vocab_size=len(dict.keys()),
+                    embed_size=EMBED,
+                    hidden_size=HIDDEN,
+                    batch_size=1,
+                    gpu=gpu)
+    serializers.load_hdf5(modelfile,model)
+
+    data=[]  # [["a","b",..],["c","d",..],..]
+    with open(datafile,"r") as f:
+        for line in f.readlines():
+            items=sampleSeq2Seq_data.wakati_list(line,dict)
+            data.append(items)
+
+
+    if gpu>=0:
+        ARR = cuda.cupy
+        cuda.get_device_from_id(gpu).use()
+        model.to_gpu(gpu)
+    else:
+        ARR = np
+
+    # change key and val,
+    # http://www.lifewithpython.com/2014/03/python-invert-keys-values-in-dict.html
+    dict_inv={v:k for k,v in dict.items()}
+    for dt in data:
+        enc_word=np.array([dt],dtype="int32").T
+        predict=forward_test(enc_words=enc_word,model=model,ARR=ARR)
+        inword=to_word(dt,dict_inv)
+        outword=to_word(predict,dict_inv)
+        print("input:"+str(inword)+",output:"+str(outword))
+
+
+
+def to_word(id_list,dict):
+    res=[]
+    for id in id_list:
+        res.append(dict[id])
+    return (res)
+
+def main():
+    p = argparse.ArgumentParser(description='copy_seq2seq')
+
+
+    #p.add_argument('--mode', default="test",help='train or test')
+    #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--mode', default="train",choices=["train","test"], help='train or test')
+    p.add_argument('--data', default="/Volumes/DATA/data/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--dict', default="/Volumes/DATA/data/chat/txt/init100.dict",help='word dictionay file, word and word id ')
+    p.add_argument('--model',default="/Volumes/DATA/data/chat/txt/copynet.model",help="in the case of train mode this file is output,in the case of test mode this file is input")
+    p.add_argument('-g','--gpu',default=-1, type=int)
+    p.add_argument('--embed',default=EMBED, type=int,help="only train mode")
+    p.add_argument('--hidden',default=HIDDEN, type=int, help="only train mode")
+    p.add_argument('--batch',default=BATCH, type=int, help="only train mode")
+    p.add_argument('--epoch',default=EPOCH, type=int, help="only train mode")
+    args = p.parse_args()
+
+    print ('開始: ', datetime.datetime.now())
+    try:
+        if args.mode == "train":
+            train(args.data,args.dict,args.model,args.gpu,args.embed,args.hidden,args.batch,args.epoch)
+        else:
+            test(args.data,args.dict,args.model,args.gpu)
+    except:
+        import traceback
+        print( traceback.format_exc())
+
+    print ('終了: ', datetime.datetime.now())
+
+
+if __name__ == '__main__':
+    main()
