@@ -1,4 +1,6 @@
 .idea
 *.o*
 __pycache__
-log.txt
+*.txt
+*.model.*
+*.model

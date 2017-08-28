@@ -14,9 +14,9 @@
 #export LDLIBS=/work/opt/glibc-2.17/lib:/work/opt/gcc485/lib64:/opt/cuda/8.0/lib64:/usr/lib64:/usr/lib:$LD_LIBRARY_PATH
 #export PYTHON_PATH=/work/${USER}/python/py35
 
-python sampleSeq2Seq.py --dict ../../data/chat/txt/dict.dat --data ../../data/chat/txt/chat.dat --mode train -g 0 --epoch 100
-aws s3 cp --recursive ../../data/chat/txt  s3://kyodonews.advanced/utsubo/nlp/chat
-for f in *.txt;do
-  aws s3 cp $f  s3://kyodonews.advanced/utsubo/nlp/chat/
-done
-sudo shutdown -h now
+python sampleSeq2Seq.py --dict ../../data/chat/txt/dict.dat --data ../../data/chat/txt/chat.dat --mode train --model seq.model  --epoch 100
+#aws s3 cp --recursive ../../data/chat/txt  s3://kyodonews.advanced/utsubo/nlp/chat
+#for f in *.txt;do
+#  aws s3 cp $f  s3://kyodonews.advanced/utsubo/nlp/chat/
+#done
+#sudo shutdown -h now

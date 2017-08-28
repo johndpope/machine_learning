@@ -14,9 +14,12 @@ if [ "$PBS_O_WORKDIR" != "" ];then
   export PYTHON_PATH=/work/${USER}/python/py35
 fi
 
-python sampleAttSeq2Seq.py --dict ../../data/chat/txt/dict.dat --data ../../data/chat/txt/chat.dat --mode train -g 0 --epoch 100 
+python sampleAttSeq2Seq.py --dict ../../data/chat/txt/dict.dat --data ../../data/chat/txt/chat.dat --model att.model --mode train -g 0 --epoch 100 
 #aws s3 cp --recursive ../../data/chat/txt  s3://kyodonews.advanced/utsubo/nlp/chat
-#for f in *.txt;do
-#  aws s3 cp $f  s3://kyodonews.advanced/utsubo/nlp/chat/
-#done
-#sudo shutdown -h now
+for f in *.txt;do
+  aws s3 cp $f  s3://kyodonews.advanced/utsubo/nlp/chat/
+done
+if [ -f att.model ];then
+  echo "sudo shutdown -h now"
+#  sudo shutdown -h now
+fi
