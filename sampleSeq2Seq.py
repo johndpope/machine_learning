@@ -253,7 +253,7 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
 
         random.shuffle(data)
         for num in range(len(data)//batch):
-                print(str(num))
+                #print(str(num))
                 minibatch = data[num*batch: (num+1)*batch]
                 # 読み込み用のデータ作成
                 enc_words, dec_words = make_minibatch(minibatch)
