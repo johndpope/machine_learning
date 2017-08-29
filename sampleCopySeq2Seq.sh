@@ -11,7 +11,7 @@ if [ "${PBS_O_WORKDIR}" != "" ];then
 fi
 source ~/.bashrc
 
-aprun python sampleCopySeq2Seq.py --dict ../../data/chat/txt/dict.dat --data ../../data/chat/txt/chat.dat --mode train --model ../../data/chat/txt/copy/copy.model  --epoch 100
+aprun python sampleCopySeq2Seq.py --dict ../../data/chat/txt/org/dict.dat --data ../../data/chat/txt/org/chat.dat --mode train --model ../../data/chat/txt/copy/copy.model  --epoch 100
 #aws s3 cp --recursive ../../data/chat/txt  s3://kyodonews.advanced/utsubo/nlp/chat
 #for f in *.txt;do
 #  aws s3 cp $f  s3://kyodonews.advanced/utsubo/nlp/chat/
