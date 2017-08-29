@@ -101,7 +101,8 @@ def wakati_encode(s,dict):
 
 def wakati_decode(s,dict):
     res=wakati_list(s,dict)
-    res.insert(0,dict["</s>"]) # 終端記号
+    #res.insert(0,dict["</s>"]) # 終端記号
+    res.append(dict["</s>"])# 終端記号
     ret=map(str,res)
     s=" ".join(ret)
     return(s)

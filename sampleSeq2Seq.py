@@ -321,12 +321,12 @@ def main():
     p = argparse.ArgumentParser(description='seq2seq')
 
 
-    #p.add_argument('--mode', default="test",help='train or test')
-    #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
-    p.add_argument('--mode', default="train",choices=["train","test"], help='train or test')
-    p.add_argument('--data', default="/Volumes/DATA/data/chat/model/chat.dat",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--mode', default="test",help='train or test')
+    p.add_argument('--data', default="/Volumes/DATA/data/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    #p.add_argument('--mode', default="train",choices=["train","test"], help='train or test')
+    #p.add_argument('--data', default="/Volumes/DATA/data/chat/model/chat.dat",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
     p.add_argument('--dict', default="/Volumes/DATA/data/chat/model/dict.dat",help='word dictionay file, word and word id ')
-    p.add_argument('--model',default="/Volumes/DATA/data/chat/txt/seq/seq.model",help="in the case of train mode this file is output,in the case of test mode this file is input")
+    p.add_argument('--model',default="/Volumes/DATA/data/chat/model/seq/seq.model.24",help="in the case of train mode this file is output,in the case of test mode this file is input")
     p.add_argument('-g','--gpu',default=-1, type=int)
     p.add_argument('--embed',default=EMBED, type=int,help="only train mode")
     p.add_argument('--hidden',default=HIDDEN, type=int, help="only train mode")
