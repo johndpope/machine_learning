@@ -14,5 +14,5 @@ source ~/.bashrc
 
 
 
-aprun python ./sampleSeq2Seq_data.py --indir ../../data/chat/json/init100 --indict ../../data/chat/txt/dict.dat --outfile ../../data/chat/txt/chat.dat --outdict ../../data/chat/txt/dict.dat
-aprun python ./sampleSeq2Seq_data.py --indir ../../data/chat/json/rest1046 --indict ../../data/chat/txt/dict.dat --outfile ../../data/chat/txt/chat.dat --outdict ../../data/chat/txt/dict.dat
+aprun python ./sampleSeq2Seq_data.py --indir ../../data/chat/json/init100 --indict ../../data/chat/model/dict.dat --outfile ../../data/chat/model/chat.dat --outdict ../../data/chat/model/dict.dat
+aprun python ./sampleSeq2Seq_data.py --indir ../../data/chat/json/rest1046 --indict ../../data/chat/model/dict.dat --outfile ../../data/chat/model/chat.dat --outdict ../../data/chat/model/dict.dat
