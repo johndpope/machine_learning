@@ -170,7 +170,7 @@ def forward(enc_words, dec_words, model, ARR):
         loss += functions.softmax_cross_entropy(y, t)
     return loss
 
-def forward_test(enc_words, model, ARR):
+def forward_test(enc_words, model, ARR, dict):
     ret = []
     model.reset()
     enc_words = [Variable(ARR.array(row, dtype='int32')) for row in enc_words]
@@ -181,14 +181,13 @@ def forward_test(enc_words, model, ARR):
     ret.append(label)
 
     counter = 0
-    while counter < 50:
+    while True:
         y = model.decode(t)
         label = y.data.argmax()
         ret.append(label)
         t = Variable(ARR.array([label], dtype='int32'))
-        counter += 1
-        if label == 1:
-            counter = 50
+        if label == dict["</s>"]:
+            break
     return ret
 
 # trainの関数
@@ -290,7 +289,7 @@ def test(datafile,dictfile,modelfile,gpu):
     data=[]  # [["a","b",..],["c","d",..],..]
     with open(datafile,"r") as f:
         for line in f.readlines():
-            items=sampleSeq2Seq_data.wakati_list(line,dict)
+            items=sampleSeq2Seq_data.wakati_list(line,dict,True,False)
             data.append(items)
 
 
@@ -306,7 +305,8 @@ def test(datafile,dictfile,modelfile,gpu):
     dict_inv={v:k for k,v in dict.items()}
     for dt in data:
         enc_word=np.array([dt],dtype="int32").T
-        predict=forward_test(enc_words=enc_word,model=model,ARR=ARR)
+        predict=forward_test(enc_words=enc_word,model=model,ARR=ARR,dict=dict)
+        dt.reverse()
         inword=to_word(dt,dict_inv)
         outword=to_word(predict,dict_inv)
         print("input:"+str(inword)+",output:"+str(outword))
@@ -324,9 +324,9 @@ def main():
     p.add_argument('--mode', default="test",help='train or test')
     p.add_argument('--data', default="/Volumes/DATA/data/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
     #p.add_argument('--mode', default="train",choices=["train","test"], help='train or test')
-    #p.add_argument('--data', default="/Volumes/DATA/data/chat/model/chat.dat",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
-    p.add_argument('--dict', default="/Volumes/DATA/data/chat/model/dict.dat",help='word dictionay file, word and word id ')
-    p.add_argument('--model',default="/Volumes/DATA/data/chat/model/seq/seq.model.24",help="in the case of train mode this file is output,in the case of test mode this file is input")
+    #p.add_argument('--data', default="/Volumes/DATA/data/chat/txt/init.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--dict', default="/Volumes/DATA/data/chat/txt/init.dict",help='word dictionay file, word and word id ')
+    p.add_argument('--model',default="/Volumes/DATA/data/chat/txt/init.model.3.3",help="in the case of train mode this file is output,in the case of test mode this file is input")
     p.add_argument('-g','--gpu',default=-1, type=int)
     p.add_argument('--embed',default=EMBED, type=int,help="only train mode")
     p.add_argument('--hidden',default=HIDDEN, type=int, help="only train mode")

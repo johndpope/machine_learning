@@ -10,7 +10,7 @@ import os
 def run(indir,indic,outfile,outdict,mode,append):
     dict=load_dict(indic)
     if len(dict.keys())<=0:
-        dict={"</s>":0}# {"単語":0,..}  </s>:終端記号
+        dict={"</s>":0,"<unk>":1}# {"単語":0,..}  </s>:終端記号, <unk>:未知語
 
     if append is True and os.path.exists(outfile):
         os.remove(outfile)
@@ -54,7 +54,7 @@ def chat_analyze(infile,outfile,dict):
         for line in lines:
             line=line.replace("\n","")
             if pline is not None and line is not None and len(pline)>0 and len(line)>0:
-                f.write(wakati_encode(pline,dict)+"\t"+wakati_decode(line,dict)+"\n")
+                f.write(wakati(pline,dict,True,True)+"\t"+wakati(line,dict,False,True)+"\n")
             pline=line
 
 def load_dict(indict):
@@ -70,7 +70,7 @@ def load_dict(indict):
             dict[items[0]]=int(items[1])
     return(dict)
 
-def wakati_list(s,dict):
+def wakati_list(s,dict,is_encode,is_train):
     tagger = MeCab.Tagger("-Owakati")
     s = s.replace("\n","")
     result = tagger.parse(s)
@@ -78,9 +78,14 @@ def wakati_list(s,dict):
     result.remove("")
 
     def word_to_id(word):
-        if word not in dict:
-            dict[word]=len(dict)
-        return dict[word]
+        if is_train:
+            if word not in dict:
+                dict[word]=len(dict)
+            return dict[word]
+        else:
+            if word not in dict:
+                return dict["<unk>"]
+            return dict[word]
     # http://hiroto1979.hatenablog.jp/entry/2016/02/10/112352
     #res=map(word_to_id,result)
     res = [word_to_id(i) for i in result]
@@ -90,22 +95,32 @@ def wakati_list(s,dict):
     # flatten
     #from itertools import chain
     #return(list(chain.from_iterable(ret)))
+    if is_encode:
+        res.reverse()
+    else:
+        res.append(dict["</s>"])  # 終端記号
     return(res)
 
-def wakati_encode(s,dict):
-    res=wakati_list(s,dict)
-    res.reverse()
+def wakati(s,dict,is_encode,is_train):
+    res=wakati_list(s,dict,is_encode,is_train)
     ret=map(str,res)
     s=" ".join(ret)
     return(s)
 
-def wakati_decode(s,dict):
-    res=wakati_list(s,dict)
-    #res.insert(0,dict["</s>"]) # 終端記号
-    res.append(dict["</s>"])# 終端記号
-    ret=map(str,res)
-    s=" ".join(ret)
-    return(s)
+#def wakati_encode(s,dict):
+#    res=wakati_list(s,dict)
+#    #res.reverse()
+#    ret=map(str,res)
+#    s=" ".join(ret)
+#    return(s)
+
+#def wakati_decode(s,dict):
+#    res=wakati_list(s,dict)
+#    #res.insert(0,dict["</s>"]) # 終端記号
+#    #res.append(dict["</s>"])# 終端記号
+#    ret=map(str,res)
+#    s=" ".join(ret)
+#    return(s)
 
 def main():
     p = argparse.ArgumentParser(description='corpus spliter')
