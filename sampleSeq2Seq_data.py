@@ -53,7 +53,7 @@ def chat_analyze(infile,outfile,dict):
         pline=None
         for line in lines:
             line=line.replace("\n","")
-            if pline is not None:
+            if pline is not None and line is not None and len(pline)>0 and len(line)>0:
                 f.write(wakati_encode(pline,dict)+"\t"+wakati_decode(line,dict)+"\n")
             pline=line
 

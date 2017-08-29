@@ -242,6 +242,7 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
     else:
         ARR = np
 
+    random.seed(123)
     # 学習開始
     for epoch in range(epoch):
         # ファイルのパスの取得
@@ -252,6 +253,7 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
 
         random.shuffle(data)
         for num in range(len(data)//batch):
+                print(str(num))
                 minibatch = data[num*batch: (num+1)*batch]
                 # 読み込み用のデータ作成
                 enc_words, dec_words = make_minibatch(minibatch)
@@ -322,9 +324,9 @@ def main():
     #p.add_argument('--mode', default="test",help='train or test')
     #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
     p.add_argument('--mode', default="train",choices=["train","test"], help='train or test')
-    p.add_argument('--data', default="/Volumes/DATA/data/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
-    p.add_argument('--dict', default="/Volumes/DATA/data/chat/txt/init100.dict",help='word dictionay file, word and word id ')
-    p.add_argument('--model',default="/Volumes/DATA/data/chat/txt/init100.model",help="in the case of train mode this file is output,in the case of test mode this file is input")
+    p.add_argument('--data', default="/Volumes/DATA/data/chat/model/chat.dat",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--dict', default="/Volumes/DATA/data/chat/model/dict.dat",help='word dictionay file, word and word id ')
+    p.add_argument('--model',default="/Volumes/DATA/data/chat/txt/seq/seq.model",help="in the case of train mode this file is output,in the case of test mode this file is input")
     p.add_argument('-g','--gpu',default=-1, type=int)
     p.add_argument('--embed',default=EMBED, type=int,help="only train mode")
     p.add_argument('--hidden',default=HIDDEN, type=int, help="only train mode")
