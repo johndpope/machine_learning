@@ -14,6 +14,7 @@ import argparse
 import datetime
 import sampleSeq2Seq_data
 import random
+import sampleSeq2Seq
 
 EMBED=300
 HIDDEN=150
@@ -227,7 +228,7 @@ def forward_test(enc_words, model, ARR,dict):
     enc_words = [Variable(ARR.array(row, dtype='int32')) for row in enc_words]
     model.encode(enc_words)
     t = Variable(ARR.array([0], dtype='int32'))
-    while True
+    while True:
         y, att, lambda_ = model.decode(t)
         lambda_ = functions.sigmoid(lambda_)
         s = functions.softmax(y)
@@ -370,17 +371,10 @@ def test(datafile,dictfile,modelfile,gpu):
     for dt in data:
         enc_word=np.array([dt],dtype="int32").T
         predict=forward_test(enc_words=enc_word,model=model,ARR=ARR,dict=dict)
-        inword=to_word(dt,dict_inv)
-        outword=to_word(predict,dict_inv)
+        inword=sampleSeq2Seq.to_word(dt,dict_inv)
+        outword=sampleSeq2Seq.to_word(predict,dict_inv)
         print("input:"+str(inword)+",output:"+str(outword))
 
-
-
-def to_word(id_list,dict):
-    res=[]
-    for id in id_list:
-        res.append(dict[id])
-    return (res)
 
 def main():
     p = argparse.ArgumentParser(description='copy_seq2seq')
