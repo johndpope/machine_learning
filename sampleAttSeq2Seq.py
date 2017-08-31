@@ -236,23 +236,22 @@ def forward(enc_words, dec_words, model, ARR):
         loss += functions.softmax_cross_entropy(y, t)
     return loss
 
-def forward_test(enc_words, model, ARR):
+def forward_test(enc_words, model, ARR, dict):
     ret = []
     model.reset()
     enc_words = [Variable(ARR.array(row, dtype='int32')) for row in enc_words]
     model.encode(enc_words)
     t = Variable(ARR.array([0], dtype='int32'))
+
     counter = 0
-    while counter < 50:
+    while True:
         y = model.decode(t)
         label = y.data.argmax()
         ret.append(label)
         t = Variable(ARR.array([label], dtype='int32'))
-        counter += 1
-        if label == 1:
-            counter = 50
+        if label == dict["</s>"]:
+            break
     return ret
-
 
 
 def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
@@ -323,7 +322,7 @@ def test(datafile,dictfile,modelfile,gpu):
     data=[]  # [["a","b",..],["c","d",..],..]
     with open(datafile,"r") as f:
         for line in f.readlines():
-            items=sampleSeq2Seq_data.wakati_list(line,dict)
+            items=sampleSeq2Seq_data.wakati_list(line,dict,True,False)
             data.append(items)
 
 
@@ -339,7 +338,7 @@ def test(datafile,dictfile,modelfile,gpu):
     dict_inv={v:k for k,v in dict.items()}
     for dt in data:
         enc_word=np.array([dt],dtype="int32").T
-        predict=forward_test(enc_words=enc_word,model=model,ARR=ARR)
+        predict=forward_test(enc_words=enc_word,model=model,ARR=ARR,dict=dict)
         inword=sampleSeq2Seq.to_word(dt,dict_inv)
         outword=sampleSeq2Seq.to_word(predict,dict_inv)
         print("input:"+str(inword)+",output:"+str(outword))
