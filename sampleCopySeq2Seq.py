@@ -372,20 +372,17 @@ def test(datafile,dictfile,modelfile,gpu):
         enc_word=np.array([dt],dtype="int32").T
         predict=forward_test(enc_words=enc_word,model=model,ARR=ARR,dict=dict)
         inword=sampleSeq2Seq.to_word(dt,dict_inv)
-        outword=sampleSeq2Seq.to_word(predict,dict_inv)
+        outword=sampleSeq2Seq.to_word(predict[0],dict_inv)
         print("input:"+str(inword)+",output:"+str(outword))
 
 
 def main():
     p = argparse.ArgumentParser(description='copy_seq2seq')
 
-
-    #p.add_argument('--mode', default="test",help='train or test')
-    #p.add_argument('--data', default="/Users/admin/Downloads/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
-    p.add_argument('--mode', default="train",choices=["train","test"], help='train or test')
-    p.add_argument('--data', default="/Volumes/DATA/data/chat/txt/init100.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
-    p.add_argument('--dict', default="/Volumes/DATA/data/chat/txt/init100.dict",help='word dictionay file, word and word id ')
-    p.add_argument('--model',default="/Volumes/DATA/data/chat/txt/copynet.model",help="in the case of train mode this file is output,in the case of test mode this file is input")
+    p.add_argument('--mode', default="test",choices=["train","test"], help='train or test')
+    p.add_argument('--data', default="/Volumes/DATA/data/chat/txt/test.txt",help='in the case of input this file has two sentences a column, in the case of output this file has one sentence a column  ')
+    p.add_argument('--dict', default="/Volumes/DATA/data/chat/model/dict.dat",help='word dictionay file, word and word id ')
+    p.add_argument('--model',default="/Volumes/DATA/data/chat/model/copy/copy.model.80",help="in the case of train mode this file is output,in the case of test mode this file is input")
     p.add_argument('-g','--gpu',default=-1, type=int)
     p.add_argument('--embed',default=EMBED, type=int,help="only train mode")
     p.add_argument('--hidden',default=HIDDEN, type=int, help="only train mode")
