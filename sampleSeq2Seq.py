@@ -139,7 +139,7 @@ class Seq2Seq(Chain):
         self.zerograds()
 
 
-def forward(enc_words, dec_words, model, ARR):
+def forward(enc_words, dec_words, model, ARR, dict):
     """
     順伝播の計算を行う関数
     :param enc_words: 発話文の単語を記録したリスト
@@ -159,7 +159,7 @@ def forward(enc_words, dec_words, model, ARR):
     # 損失の初期化
     loss = Variable(ARR.zeros((), dtype='float32'))
     # <eos>をデコーダーに読み込ませる ②
-    t = Variable(ARR.array([0 for _ in range(batch_size)], dtype='int32'))
+    t = Variable(ARR.array([dict["<eos>"] for _ in range(batch_size)], dtype='int32'))
     # デコーダーの計算
     for w in dec_words:
         # 1単語ずつをデコードする ③
@@ -262,7 +262,8 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
                 total_loss = forward(enc_words=enc_words,
                                      dec_words=dec_words,
                                      model=model,
-                                     ARR=ARR)
+                                     ARR=ARR,
+                                     dict=dict)
                 # 学習
                 total_loss.backward()
                 opt.update()

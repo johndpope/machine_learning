@@ -217,7 +217,7 @@ class Att_Seq2Seq(Chain):
         self.zerograds()
 
 
-def forward(enc_words, dec_words, model, ARR):
+def forward(enc_words, dec_words, model, ARR, dict):
     batch_size = len(enc_words[0])
     model.reset()
     enc_words = [Variable(ARR.array(row, dtype='int32')) for row in enc_words]
@@ -225,7 +225,7 @@ def forward(enc_words, dec_words, model, ARR):
     # 損失の初期化
     loss = Variable(ARR.zeros((), dtype='float32'))
     # <eos>をデコーダーに読み込ませる ②
-    t = Variable(ARR.array([0 for _ in range(batch_size)], dtype='int32'))
+    t = Variable(ARR.array([dict["<eos>"] for _ in range(batch_size)], dtype='int32'))
     # デコーダーの計算
     for w in dec_words:
         # 1単語ずつをデコードする ③
@@ -241,7 +241,7 @@ def forward_test(enc_words, model, ARR, dict):
     model.reset()
     enc_words = [Variable(ARR.array(row, dtype='int32')) for row in enc_words]
     model.encode(enc_words)
-    t = Variable(ARR.array([0], dtype='int32'))
+    t = Variable(ARR.array([dict["<eos>"]], dtype='int32'))
 
     counter = 0
     while True:
@@ -249,7 +249,7 @@ def forward_test(enc_words, model, ARR, dict):
         label = y.data.argmax()
         ret.append(label)
         t = Variable(ARR.array([label], dtype='int32'))
-        if label == dict["</s>"]:
+        if label == dict["<eos>"]:
             break
     return ret
 
@@ -295,7 +295,8 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batch,epoch):
                 total_loss = forward(enc_words=enc_words,
                                      dec_words=dec_words,
                                      model=model,
-                                     ARR=ARR)
+                                     ARR=ARR,
+                                     dict=dict)
                 # 学習
                 total_loss.backward()
                 opt.update()

@@ -10,7 +10,7 @@ import os
 def run(indir,indic,outfile,outdict,mode,append):
     dict=load_dict(indic)
     if len(dict.keys())<=0:
-        dict={"</s>":0,"<unk>":1}# {"単語":0,..}  </s>:終端記号, <unk>:未知語
+        dict={"<eos>":0,"<unk>":1}# {"単語":0,..}  </s>:終端記号, <unk>:未知語
 
     if append is True and os.path.exists(outfile):
         os.remove(outfile)
@@ -87,18 +87,12 @@ def wakati_list(s,dict,is_encode,is_train):
                 return dict["<unk>"]
             return dict[word]
     # http://hiroto1979.hatenablog.jp/entry/2016/02/10/112352
-    #res=map(word_to_id,result)
     res = [word_to_id(i) for i in result]
 
-    #res.append(dict["</s>"]) # 終端記号
-    # http://d.hatena.ne.jp/xef/20121027/p2
-    # flatten
-    #from itertools import chain
-    #return(list(chain.from_iterable(ret)))
-    if is_encode:
-        res.reverse()
-    else:
-        res.append(dict["</s>"])  # 終端記号
+    #if is_encode:
+    #    res.reverse()
+    #else:
+    #    res.append(dict["<eos>"])  # 終端記号
     return(res)
 
 def wakati(s,dict,is_encode,is_train):
@@ -106,21 +100,6 @@ def wakati(s,dict,is_encode,is_train):
     ret=map(str,res)
     s=" ".join(ret)
     return(s)
-
-#def wakati_encode(s,dict):
-#    res=wakati_list(s,dict)
-#    #res.reverse()
-#    ret=map(str,res)
-#    s=" ".join(ret)
-#    return(s)
-
-#def wakati_decode(s,dict):
-#    res=wakati_list(s,dict)
-#    #res.insert(0,dict["</s>"]) # 終端記号
-#    #res.append(dict["</s>"])# 終端記号
-#    ret=map(str,res)
-#    s=" ".join(ret)
-#    return(s)
 
 def main():
     p = argparse.ArgumentParser(description='corpus spliter')
