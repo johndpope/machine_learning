@@ -6,6 +6,7 @@ import json
 import MeCab
 import unicodedata
 import os
+import re
 
 def run(indir,indic,outfile,outdict,mode,append):
     dict=load_dict(indic)
@@ -26,20 +27,28 @@ def run(indir,indic,outfile,outdict,mode,append):
         for key in dict.keys():
             f.write(str(key)+"\t"+str(dict[key])+"\n")
 
-# TODO
 def nuc_analyze(infile,outfile,dict):
     lines=[]
     with open(infile,"r") as f:
-        sentence=""
-        for line in f.readlines():
-            if line.find("＠")==0 or line.find("％")==0:
-                continue
-            if line.index("：")>=0:
-                lines.append(unicodedata.normalize("NFKC",sentence))
-                sentence=line.split("：")[1]
-            else:
-                sentence=sentence+line
-    self.chat_write(lines,dict)
+        try:
+            sentence=""
+            for line in f.readlines():
+                line=line.replace("\n","")
+                line=re.sub("＜.*?＞","",line)
+                line=re.sub("（.*?）","",line)
+                if line.find("＠")==0 or line.find("％")==0:
+                    continue
+                print(line)
+                if line.find("：")>=0:
+                    if len(sentence)>0:
+                        lines.append(unicodedata.normalize("NFKC",sentence))
+                    sentence=line.split("：")[1]
+                else:
+                    sentence=sentence+line
+        except:
+            import traceback
+            print(traceback.print_exc())
+    chat_write(lines,dict,outfile)
     
 
 def chat_analyze(infile,outfile,dict):
@@ -51,9 +60,9 @@ def chat_analyze(infile,outfile,dict):
     #id=js["dialogue-id"]
     for turn in js["turns"]:
         lines.append(unicodedata.normalize("NFKC", turn["utterance"]))
-    self.chat_write(lines,dict)
+    chat_write(lines,dict,outfile)
 
-def chat_write(lines,dict):
+def chat_write(lines,dict,outfile):
 
     with open(outfile,"a") as f:
         pline=None
@@ -110,12 +119,13 @@ def wakati(s,dict,is_encode,is_train):
 def main():
     p = argparse.ArgumentParser(description='corpus spliter')
 
-    p.add_argument('--indir', default="/Volumes/DATA/data/chat/json/init100/",help='input file')
+    p.add_argument('--indir', default="/Volumes/DATA/data/chat/nuc/",help='input file')
+    #p.add_argument('--indir', default="/Volumes/DATA/data/chat/json/init100/",help='input file')
     #p.add_argument('--indir', default="/Volumes/DATA/data/chat/json/rest1046/",help='input file')
     p.add_argument('--append', default=True, help="append outfile if exists")
-    p.add_argument('--mode', default="chat", help="chat or nuc")
+    p.add_argument('--mode', default="nuc", help="chat or nuc")
     p.add_argument('--indict',default="/Volumes/DATA/data/chat/txt/init.dict")
-    p.add_argument('--outfile',default="/Volumes/DATA/data/chat/txt/init.txt")
+    p.add_argument('--outfile',default="/Volumes/DATA/data/chat/txt/nuc.txt")
     p.add_argument('--outdict',default="/Volumes/DATA/data/chat/txt/init.dict")
     args = p.parse_args()
 
