@@ -28,16 +28,19 @@ def run(indir,indic,outfile,outdict,mode,append):
 
 # TODO
 def nuc_analyze(infile,outfile,dict):
+    lines=[]
     with open(infile,"r") as f:
         sentence=""
         for line in f.readlines():
             if line.find("＠")==0 or line.find("％")==0:
                 continue
             if line.index("：")>=0:
+                lines.append(unicodedata.normalize("NFKC",sentence))
                 sentence=line.split("：")[1]
             else:
                 sentence=sentence+line
-    pass
+    self.chat_write(lines,dict)
+    
 
 def chat_analyze(infile,outfile,dict):
     if infile.find("._")>=0:
@@ -48,6 +51,9 @@ def chat_analyze(infile,outfile,dict):
     #id=js["dialogue-id"]
     for turn in js["turns"]:
         lines.append(unicodedata.normalize("NFKC", turn["utterance"]))
+    self.chat_write(lines,dict)
+
+def chat_write(lines,dict):
 
     with open(outfile,"a") as f:
         pline=None
