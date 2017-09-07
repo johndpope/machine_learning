@@ -6,7 +6,7 @@
 
 if [ "${PBS_O_WORKDIR}" != "" ];then
   cd ${PBS_O_WORKDIR}
-  export PYTHON_EGG_CACHE=/work/s1630401/tmp/.python-eggs
+  export PYTHON_EGG_CACHE=/work/$USER/tmp/.python-eggs
   export OMP_NUM_THREADS=36
 fi
 source ~/.bashrc
