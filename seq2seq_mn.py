@@ -41,7 +41,7 @@ def read_source(infile, dict):
     with open(infile,"r") as f:
         for l in f.readlines():
             item=l.replace("\n","").split("\t")
-            source_data.append([int(x) for x in item[0].split(" ")])
+            source_data.append(numpy.array([int(x) for x in item[0].split(" ")],'i'))
     source_vocab={}
     with open(dict,"r") as f:
         for l in f.readlines():
@@ -55,7 +55,7 @@ def read_target(infile, dict):
     with open(infile,"r") as f:
         for l in f.readlines():
             item=l.replace("\n","").split("\t")
-            target_data.append([int(x) for x in item[1].split(" ")])
+            target_data.append(numpy.array([int(x) for x in item[1].split(" ")],'i'))
         target_vocab={}
     with open(dict,"r") as f:
         for l in f.readlines():
@@ -156,7 +156,8 @@ def convert(batch, device):
         if device is None:
             return batch
         elif device < 0:
-            return [chainer.dataset.to_device(device, x) for x in batch]
+            ret= [chainer.dataset.to_device(device, x) for x in batch]
+            return ret
         else:
             xp = cuda.cupy.get_array_module(*batch)
             concat = xp.concatenate(batch, axis=0)
@@ -501,12 +502,10 @@ def main():
         BleuEvaluator(model, test_data, device=dev, comm=comm),
         comm))
 
-    """
     def translate_one(source, target):
-        words = europal.split_sentence(source)
-        print('# source : ' + ' '.join(words))
-        x = model.xp.array(
-            [source_ids.get(w, 1) for w in words], 'i')
+        words=sampleSeq2Seq_data.wakati_list(source,source_ids,True,False)
+        print('# source : ' +source)
+        x=numpy.array([int(x) for x in words],"i")
         ys = model.translate([x])[0]
         words = [target_words[y] for y in ys]
         print('#  result : ' + ' '.join(words))
@@ -514,20 +513,11 @@ def main():
 
     # @chainer.training.make_extension(trigger=(200, 'iteration'))
     def translate(trainer):
-        translate_one(
-            'Who are we ?',
-            'Qui sommes-nous?')
-        translate_one(
-            'And it often costs over a hundred dollars ' +
-            'to obtain the required identity card .',
-            'Or, il en coûte souvent plus de cent dollars ' +
-            'pour obtenir la carte d\'identité requise.')
-
         source, target = test_data[numpy.random.choice(len(test_data))]
         source = ' '.join([source_words.get(i, '') for i in source])
         target = ' '.join([target_words.get(i, '') for i in target])
         translate_one(source, target)
-    """
+
     if comm.rank == 0:
         trainer.extend(extensions.LogReport(trigger=(1, 'epoch')),
                        trigger=(1, 'epoch'))
@@ -546,7 +536,8 @@ def main():
         sys.stdout.flush()
 
     trainer.run()
-    chainer.serializers.save_hdf5(args.model, model)
+    self.translate(trainer)
+    chainer.serializers.save_hdf5(args.model, trainer)
 
 if __name__ == '__main__':
     main()
