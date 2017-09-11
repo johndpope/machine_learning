@@ -290,19 +290,19 @@ def train(datafile,dictfile,modelfile,gpu,embed,hidden,batchsize,epoch,communica
     trainer = chainer.training.Trainer(updater, (epoch, 'epoch'), out=args.out)
 
     # Create a multi node evaluator from a standard Chainer evaluator.
-    evaluator = chainer.extensions.Evaluator(test_iter, model, device=gpu)
+    evaluator = chainer.training.extensions.Evaluator(test_iter, model, device=gpu)
     evaluator = chainermn.create_multi_node_evaluator(evaluator, comm)
     trainer.extend(evaluator)
 
     # Some display and output extensions are necessary only for one worker.
     # (Otherwise, there would just be repeated outputs.)
     if comm.rank == 0:
-        trainer.extend(chainer.extensions.dump_graph('main/loss'))
-        trainer.extend(chainer.extensions.LogReport())
-        trainer.extend(chainer.extensions.PrintReport(
+        trainer.extend(chainer.training.extensions.dump_graph('main/loss'))
+        trainer.extend(chainer.training.extensions.LogReport())
+        trainer.extend(chainer.training.extensions.PrintReport(
             ['epoch', 'main/loss', 'validation/main/loss',
              'main/accuracy', 'validation/main/accuracy', 'elapsed_time']))
-        trainer.extend(chainer.extensions.ProgressBar())
+        trainer.extend(chainer.training.extensions.ProgressBar())
 
     trainer.run()
     serializers.save_hdf5(modelfile, model)
