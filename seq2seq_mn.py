@@ -41,12 +41,12 @@ def read_source(infile, dict):
     with open(infile,"r") as f:
         for l in f.readlines():
             item=l.replace("\n","").split("\t")
-            source_data.append(item[0].split(" "))
+            source_data.append([int(x) for x in item[0].split(" ")])
     source_vocab={}
     with open(dict,"r") as f:
         for l in f.readlines():
             item=l.replace("\n","").split("\t")
-            source_vocab[item[0]]=item[1]
+            source_vocab[item[0]]=int(item[1])
     return source_vocab, source_data
 
 
@@ -55,12 +55,12 @@ def read_target(infile, dict):
     with open(infile,"r") as f:
         for l in f.readlines():
             item=l.replace("\n","").split("\t")
-            target_data.append(item[1].split(" "))
+            target_data.append([int(x) for x in item[1].split(" ")])
         target_vocab={}
     with open(dict,"r") as f:
         for l in f.readlines():
             item=l.replace("\n","").split("\t")
-            target_vocab[item[0]]=item[1]
+            target_vocab[item[0]]=int(item[1])
     return target_vocab, target_data
 
 
@@ -337,9 +337,8 @@ def main():
                         help="Type of communicator")
     parser.add_argument('--stop', '-s', type=str, default="15e",
                         help='Stop trigger (ex. "500i", "15e")')
-    parser.add_argument('--data', type=str, default='/Volumes/DATA/data/chat/txt/init.txt',
-                        help='data file')
-    parser.add_argument('--dict', type=str, defalut='/Volumes/DATA/data/chat/txt/init.dict')
+    parser.add_argument('--data', type=str, default='/Volumes/DATA/data/chat/txt/init.txt', help='data file')
+    parser.add_argument('--dict', type=str, default='/Volumes/DATA/data/chat/txt/init.dict')
     parser.add_argument('--optimizer', type=str, default="adam()",
                         help="Optimizer and its argument")
     parser.add_argument('--out', '-o', default='result',
