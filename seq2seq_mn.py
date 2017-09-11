@@ -536,7 +536,7 @@ def main():
         sys.stdout.flush()
 
     trainer.run()
-    self.translate(trainer)
+    translate(trainer)
     chainer.serializers.save_hdf5(args.model, trainer)
 
 if __name__ == '__main__':
