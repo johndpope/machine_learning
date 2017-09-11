@@ -22,7 +22,6 @@ from chainer import training
 from chainer.training import extensions
 import chainermn
 
-import europal
 
 
 def cached_call(fname, func, *args):
@@ -37,19 +36,31 @@ def cached_call(fname, func, *args):
         return val
 
 
-def read_source(in_dir, cache=None):
-    en_path = os.path.join(in_dir, 'giga-fren.release2.fixed.en')
-    source_vocab = ['<eos>', '<unk>'] + europal.count_words(en_path)
-    source_data = europal.make_dataset(en_path, source_vocab)
-
+def read_source(infile, dict):
+    source_data=[]
+    with open(infile,"r") as f:
+        for l in f.readlines():
+            item=l.replace("\n","").split("\t")
+            source_data.append(item[0].split(" "))
+    source_vocab={}
+    with open(dict,"r") as f:
+        for l in f.readlines():
+            item=l.replace("\n","").split("\t")
+            source_vocab[item[0]]=item[1]
     return source_vocab, source_data
 
 
-def read_target(in_dir, cahce=None):
-    fr_path = os.path.join(in_dir, 'giga-fren.release2.fixed.fr')
-    target_vocab = ['<eos>', '<unk>'] + europal.count_words(fr_path)
-    target_data = europal.make_dataset(fr_path, target_vocab)
-
+def read_target(infile, dict):
+    target_data=[]
+    with open(infile,"r") as f:
+        for l in f.readlines():
+            item=l.replace("\n","").split("\t")
+            target_data.append(item[1].split(" "))
+        target_vocab={}
+    with open(dict,"r") as f:
+        for l in f.readlines():
+            item=l.replace("\n","").split("\t")
+            target_vocab[item[0]]=item[1]
     return target_vocab, target_data
 
 
@@ -326,12 +337,18 @@ def main():
                         help="Type of communicator")
     parser.add_argument('--stop', '-s', type=str, default="15e",
                         help='Stop trigger (ex. "500i", "15e")')
-    parser.add_argument('--input', '-i', type=str, default='wmt',
-                        help='Input directory')
+    parser.add_argument('--data', type=str, default='/Volumes/DATA/data/chat/txt/init.txt',
+                        help='data file')
+    parser.add_argument('--dict', type=str, defalut='/Volumes/DATA/data/chat/txt/init.dict')
     parser.add_argument('--optimizer', type=str, default="adam()",
                         help="Optimizer and its argument")
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
+    parser.add_argument('--mode', default='train',choices=["train","test"],
+                        help='')
+    parser.add_argument('--model',  default='/Volumes/DATA/data/chat/txt/init.model',
+                        help='model file')
+
     args = parser.parse_args()
 
     # Prepare ChainerMN communicator
@@ -363,9 +380,9 @@ def main():
             cache_file = os.path.join(args.cache, 'source.pickle')
             source_vocab, source_data = cached_call(cache_file,
                                                     read_source,
-                                                    args.input, args.cache)
+                                                    args.data, args.dict)
         else:
-            source_vocab, source_data = read_source(args.input, args.cache)
+            source_vocab, source_data = read_source(args.data, args.dict)
         et = time.time()
         print("RD source done. {:.3f} [s]".format(et - bt))
         sys.stdout.flush()
@@ -376,35 +393,33 @@ def main():
             cache_file = os.path.join(args.cache, 'target.pickle')
             target_vocab, target_data = cached_call(cache_file,
                                                     read_target,
-                                                    args.input, args.cache)
+                                                    args.data, args.dict)
         else:
-            target_vocab, target_data = read_target(args.input, args.cache)
+            target_vocab, target_data = read_target(args.data, args.dict)
         et = time.time()
         print("RD target done. {:.3f} [s]".format(et - bt))
         sys.stdout.flush()
 
         print('Original training data size: %d' % len(source_data))
-        train_data = [(s, t)
+        all_data = [(s, t)
                       for s, t in six.moves.zip(source_data, target_data)
                       if 0 < len(s) < 50 and 0 < len(t) < 50]
-        print('Filtered training data size: %d' % len(train_data))
+        print('Filtered training data size: %d' % len(all_data))
 
-        en_path = os.path.join(args.input, 'dev', 'newstest2013.en')
-        source_data = europal.make_dataset(en_path, source_vocab)
-        fr_path = os.path.join(args.input, 'dev', 'newstest2013.fr')
-        target_data = europal.make_dataset(fr_path, target_vocab)
-        assert(len(source_data) == len(target_data))
-        test_data = [(s, t) for s, t
-                     in six.moves.zip(source_data, target_data)
-                     if 0 < len(s) and 0 < len(t)]
+        # 80% training data, 20% test data
+        adr = int(len(all_data) * 0.8)
+        train_data = all_data[:adr]
+        test_data = all_data[adr:]
 
-        source_ids = {word: index
-                      for index, word in enumerate(source_vocab)}
-        target_ids = {word: index
-                      for index, word in enumerate(target_vocab)}
+        source_ids = source_vocab
+        target_ids = target_vocab
+        #source_ids = {word: index
+        #              for index, word in enumerate(source_vocab)}
+        #target_ids = {word: index
+        #             for index, word in enumerate(target_vocab)}
     else:
         # target_data, source_data = None, None
-        train_data, test_data = None, None
+        train_data ,test_data = None, None
         target_ids, source_ids = None, None
 
     # Print GPU id
@@ -428,7 +443,7 @@ def main():
     model = Seq2seq(3, len(source_ids), len(target_ids), args.unit)
 
     if dev >= 0:
-        chainer.cuda.get_device(dev).use()
+        chainer.cuda.get_device_from_id(dev).use()
         model.to_gpu(dev)
 
     # determine the stop trigger
@@ -487,6 +502,7 @@ def main():
         BleuEvaluator(model, test_data, device=dev, comm=comm),
         comm))
 
+    """
     def translate_one(source, target):
         words = europal.split_sentence(source)
         print('# source : ' + ' '.join(words))
@@ -512,7 +528,7 @@ def main():
         source = ' '.join([source_words.get(i, '') for i in source])
         target = ' '.join([target_words.get(i, '') for i in target])
         translate_one(source, target)
-
+    """
     if comm.rank == 0:
         trainer.extend(extensions.LogReport(trigger=(1, 'epoch')),
                        trigger=(1, 'epoch'))
@@ -531,7 +547,7 @@ def main():
         sys.stdout.flush()
 
     trainer.run()
-
+    chainer.serializers.save_hdf5(args.model, model)
 
 if __name__ == '__main__':
     main()
