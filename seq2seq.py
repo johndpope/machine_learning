@@ -8,7 +8,7 @@ import re
 import sys
 import time
 
-from mpi4py import MPI
+#from mpi4py import MPI
 from nltk.translate import bleu_score
 import numpy
 import six
@@ -20,7 +20,7 @@ import chainer.links as L
 from chainer import reporter
 from chainer import training
 from chainer.training import extensions
-import chainermn
+#import chainermn
 import sampleSeq2Seq_data
 
 
