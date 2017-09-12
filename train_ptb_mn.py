@@ -161,7 +161,7 @@ def main():
                              '(= length of truncated BPTT)')
     parser.add_argument('--epoch', '-e', type=int, default=39,
                         help='Number of sweeps over the dataset to train')
-    parser.add_argument('--gpu', '-g', type=int, default=-1,
+    parser.add_argument('--gpu', '-g',  default=False,
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--gradclip', '-c', type=float, default=5,
                         help='Gradient norm threshold to clip')
@@ -231,9 +231,9 @@ def main():
     rnn = RNNForLM(n_vocab, args.unit)
     model = L.Classifier(rnn)
     model.compute_accuracy = False  # we only want the perplexity
-    if args.gpu >= 0:
+    if args.gpu :
         # Make a specified GPU current
-        chainer.cuda.get_device_from_id(args.gpu).use()
+        chainer.cuda.get_device_from_id(device).use()
         model.to_gpu()
 
     # Create a multi node optimizer from a standard Chainer optimizer.
@@ -256,13 +256,13 @@ def main():
 
 
     # Set up a trainer
-    updater = BPTTUpdater(train_iter, optimizer, args.bproplen, args.gpu)
+    updater = BPTTUpdater(train_iter, optimizer, args.bproplen, device)
     trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
 
     eval_model = model.copy()  # Model with shared params and distinct states
     eval_rnn = eval_model.predictor
     evaluator=extensions.Evaluator(
-        val_iter, eval_model, device=args.gpu,
+        val_iter, eval_model, device=device,
         # Reset the RNN state at the beginning of each evaluation
         eval_hook=lambda _: eval_rnn.reset_state())
 
@@ -294,7 +294,7 @@ def main():
         # Evaluate the final model
         print('test')
         eval_rnn.reset_state()
-        evaluator = extensions.Evaluator(test_iter, eval_model, device=args.gpu)
+        evaluator = extensions.Evaluator(test_iter, eval_model, device=device)
         result = evaluator()
         print('test perplexity:', np.exp(float(result['main/loss'])))
 
