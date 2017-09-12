@@ -75,7 +75,7 @@ def sequence_embed(embed, xs):
 
 class Seq2seq(chainer.Chain):
 
-    def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units):
+    def __init__(self, n_layers, n_source_vocab, n_target_vocab, n_units, gpu):
         super(Seq2seq, self).__init__(
             embed_x=L.EmbedID(n_source_vocab, n_units),
             embed_y=L.EmbedID(n_target_vocab, n_units),
@@ -85,6 +85,7 @@ class Seq2seq(chainer.Chain):
         )
         self.n_layers = n_layers
         self.n_units = n_units
+        self.gpu=gpu
 
     def __call__(self, *inputs):
         xs = inputs[:len(inputs) // 2]
@@ -139,8 +140,8 @@ class Seq2seq(chainer.Chain):
                     wy = self.W(cys)
                     ys = self.xp.argmax(wy.data, axis=1).astype('i')
                     result.append(ys)
-
-        result = cuda.to_cpu(self.xp.stack(result).T)
+        if self.gpu>=0:
+            result = cuda.to_cpu(self.xp.stack(result).T)
 
         # Remove EOS taggs
         outs = []
@@ -150,26 +151,6 @@ class Seq2seq(chainer.Chain):
                 y = y[:inds[0, 0]]
             outs.append(y)
         return outs
-
-
-def convert(batch, device):
-    def to_device_batch(batch):
-        if device is None:
-            return batch
-        elif device < 0:
-            ret= [chainer.dataset.to_device(device, x) for x in batch]
-            return ret
-        else:
-            xp = cuda.cupy.get_array_module(*batch)
-            concat = xp.concatenate(batch, axis=0)
-            sections = numpy.cumsum([len(x) for x in batch[:-1]], dtype='i')
-            concat_dev = chainer.dataset.to_device(device, concat)
-            batch_dev = cuda.cupy.split(concat_dev, sections)
-            return batch_dev
-
-    return tuple(
-        to_device_batch([x for x, _ in batch]) +
-        to_device_batch([y for _, y in batch]))
 
 
 class CalculateBleu(chainer.training.Extension):
@@ -201,6 +182,25 @@ class CalculateBleu(chainer.training.Extension):
             references, hypotheses,
             smoothing_function=bleu_score.SmoothingFunction().method1)
         reporter.report({self.key: bleu})
+
+def convert(batch, device):
+    def to_device_batch(batch):
+        if device is None:
+            return batch
+        elif device < 0:
+            ret= [chainer.dataset.to_device(device, x) for x in batch]
+            return ret
+        else:
+            xp = cuda.cupy.get_array_module(*batch)
+            concat = xp.concatenate(batch, axis=0)
+            sections = numpy.cumsum([len(x) for x in batch[:-1]], dtype='i')
+            concat_dev = chainer.dataset.to_device(device, concat)
+            batch_dev = cuda.cupy.split(concat_dev, sections)
+            return batch_dev
+
+    return tuple(
+        to_device_batch([x for x, _ in batch]) +
+        to_device_batch([y for _, y in batch]))
 
 
 class BleuEvaluator(extensions.Evaluator):
@@ -327,7 +327,7 @@ def main():
                         help='Number of images in each mini-batch')
     parser.add_argument('--bleu', action="store_true", default=False,
                         help='Report BLEU score')
-    parser.add_argument('--gpu', '-g', action='store_true',
+    parser.add_argument('--gpu', '-g', default=-1, type=int,
                         help='Use GPU')
     parser.add_argument('--cache', '-c', default=None,
                         help='Directory to cache pre-processed dataset')
@@ -349,159 +349,94 @@ def main():
                         help='')
     parser.add_argument('--model',  default='/Volumes/DATA/data/chat/txt/init.model',
                         help='model file')
-
+    parser.add_argument('--epoch',  default=20, type=int)
+    parser.add_argument('--frequency', '-f', type=int, default=-1,
+                        help='Frequency of taking a snapshot')
     args = parser.parse_args()
 
-    # Prepare ChainerMN communicator
-    if args.gpu:
-        comm = chainermn.create_communicator('hierarchical')
-        dev = comm.intra_rank
-    else:
-        comm = chainermn.create_communicator('naive')
-        dev = -1
-
-    if comm.mpi_comm.rank == 0:
-        print('==========================================')
-        print('Num process (COMM_WORLD): {}'.format(MPI.COMM_WORLD.Get_size()))
-        if args.gpu:
-            print('Using GPUs')
-        print('Using {} communicator'.format(args.communicator))
-        print('Num unit: {}'.format(args.unit))
-        print('Num Minibatch-size: {}'.format(args.batchsize))
-        print('==========================================')
+    print('==========================================')
+    if args.gpu>=0:
+        print('Using GPUs')
+    print('Using {} communicator'.format(args.communicator))
+    print('Num unit: {}'.format(args.unit))
+    print('Num Minibatch-size: {}'.format(args.batchsize))
+    print('==========================================')
 
     # Rank 0 prepares all data
-    if comm.rank == 0:
-        if args.cache and not os.path.exists(args.cache):
-            os.mkdir(args.cache)
 
-        # Read source data
-        bt = time.time()
-        if args.cache:
-            cache_file = os.path.join(args.cache, 'source.pickle')
-            source_vocab, source_data = cached_call(cache_file,
+    if args.cache and not os.path.exists(args.cache):
+        os.mkdir(args.cache)
+
+    # Read source data
+    bt = time.time()
+    if args.cache:
+        cache_file = os.path.join(args.cache, 'source.pickle')
+        source_vocab, source_data = cached_call(cache_file,
                                                     read_source,
                                                     args.data, args.dict)
-        else:
-            source_vocab, source_data = read_source(args.data, args.dict)
-        et = time.time()
-        print("RD source done. {:.3f} [s]".format(et - bt))
-        sys.stdout.flush()
+    else:
+        source_vocab, source_data = read_source(args.data, args.dict)
+    et = time.time()
+    print("RD source done. {:.3f} [s]".format(et - bt))
+    sys.stdout.flush()
 
-        # Read target data
-        bt = time.time()
-        if args.cache:
-            cache_file = os.path.join(args.cache, 'target.pickle')
-            target_vocab, target_data = cached_call(cache_file,
+    # Read target data
+    bt = time.time()
+    if args.cache:
+        cache_file = os.path.join(args.cache, 'target.pickle')
+        target_vocab, target_data = cached_call(cache_file,
                                                     read_target,
                                                     args.data, args.dict)
-        else:
-            target_vocab, target_data = read_target(args.data, args.dict)
-        et = time.time()
-        print("RD target done. {:.3f} [s]".format(et - bt))
-        sys.stdout.flush()
-
-        print('Original training data size: %d' % len(source_data))
-        all_data = [(s, t)
-                      for s, t in six.moves.zip(source_data, target_data)
-                      if 0 < len(s) < 50 and 0 < len(t) < 50]
-        print('Filtered training data size: %d' % len(all_data))
-
-        # 80% training data, 20% test data
-        adr = int(len(all_data) * 0.8)
-        train_data = all_data[:adr]
-        test_data = all_data[adr:]
-
-        source_ids = source_vocab
-        target_ids = target_vocab
-        #source_ids = {word: index
-        #              for index, word in enumerate(source_vocab)}
-        #target_ids = {word: index
-        #             for index, word in enumerate(target_vocab)}
     else:
-        # target_data, source_data = None, None
-        train_data ,test_data = None, None
-        target_ids, source_ids = None, None
+        target_vocab, target_data = read_target(args.data, args.dict)
+    et = time.time()
+    print("RD target done. {:.3f} [s]".format(et - bt))
+    sys.stdout.flush()
 
-    # Print GPU id
-    for i in range(0, comm.size):
-        if comm.rank == i:
-            print("Rank {} GPU: {}".format(comm.rank, dev))
-        sys.stdout.flush()
-        comm.mpi_comm.Barrier()
+    print('Original training data size: %d' % len(source_data))
+    all_data = [(s, t)
+            for s, t in six.moves.zip(source_data, target_data)
+                if 0 < len(s) < 50 and 0 < len(t) < 50]
+    print('Filtered training data size: %d' % len(all_data))
 
-    # broadcast id- > word dictionary
-    source_ids = comm.mpi_comm.bcast(source_ids, root=0)
-    target_ids = comm.mpi_comm.bcast(target_ids, root=0)
+    # 80% training data, 20% test data
+    adr = int(len(all_data) * 0.8)
+    train_data = all_data[:adr]
+    test_data = all_data[adr:]
+
+    source_ids = source_vocab
+    target_ids = target_vocab
+
+
 
     target_words = {i: w for w, i in target_ids.items()}
     source_words = {i: w for w, i in source_ids.items()}
 
-    if comm.rank == 0:
-        print("target_words : {}".format(len(target_words)))
-        print("source_words : {}".format(len(source_words)))
 
-    model = Seq2seq(3, len(source_ids), len(target_ids), args.unit)
+    print("target_words : {}".format(len(target_words)))
+    print("source_words : {}".format(len(source_words)))
 
-    if dev >= 0:
-        chainer.cuda.get_device_from_id(dev).use()
-        model.to_gpu(dev)
+    model = Seq2seq(3, len(source_ids), len(target_ids), args.unit, args.gpu)
 
-    # determine the stop trigger
-    m = re.match(r'^(\d+)e$', args.stop)
-    if m:
-        trigger = (int(m.group(1)), 'epoch')
-    else:
-        m = re.match(r'^(\d+)i$', args.stop)
-        if m:
-            trigger = (int(m.group(1)), 'iteration')
-        else:
-            if comm.rank == 0:
-                sys.stderr.write("Error: unknown stop trigger: {}".format(
-                    args.stop))
-            exit(-1)
+    if args.gpu >= 0:
+        chainer.cuda.get_device_from_id(args.gpu).use()
+        model.to_gpu()
 
-    if comm.rank == 0:
-        print("Trigger: {}".format(trigger))
-
-    optimizer = chainermn.create_multi_node_optimizer(
-        create_optimizer(args.optimizer), comm)
+    # Setup an optimizer
+    optimizer = chainer.optimizers.Adam()
     optimizer.setup(model)
 
-    # Broadcast dataset
-    # Sanity check of train_data
 
-    # If the pickled size exceeds 4GB, which is a limit of data size
-    # that MPI can send in a single MPI_Send/MPI_Recv,
-    # ChainerMN raises DataSizeError.
-    try:
-        train_data = chainermn.scatter_dataset(train_data, comm)
-    except chainermn.DataSizeError as exc:
-        recv_data = []
-        # Split the train_data into slices
-        # as advised from DataSizeError, and retry sending them.
-        for (b, e) in _slices(exc):
-            if train_data is not None:
-                slice = train_data[b:e]
-            else:
-                slice = None
-            recv_data += chainermn.scatter_dataset(slice, comm)
-        train_data = recv_data
+    train_iter = chainer.iterators.SerialIterator(train_data, args.batchsize)
+    test_iter = chainer.iterators.SerialIterator(test_data, args.batchsize,
+                                                 repeat=False, shuffle=False)
+    # Set up a trainer
+    updater = training.StandardUpdater(train_iter, optimizer, converter=convert, device=args.gpu)
+    trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
 
-    test_data = chainermn.scatter_dataset(test_data, comm)
 
-    train_iter = chainer.iterators.SerialIterator(train_data,
-                                                  args.batchsize,
-                                                  shuffle=False)
-    updater = training.StandardUpdater(
-        train_iter, optimizer, converter=convert, device=dev)
-    trainer = training.Trainer(updater,
-                               trigger,
-                               out=args.out)
-
-    trainer.extend(chainermn.create_multi_node_evaluator(
-        BleuEvaluator(model, test_data, device=dev, comm=comm),
-        comm))
+    # Evaluate the model with the test dataset for each epoch
+    trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
 
     def translate_one(source, target):
         words=sampleSeq2Seq_data.wakati_list(source,source_ids,True,False)
@@ -519,27 +454,10 @@ def main():
         target = ' '.join([target_words.get(i, '') for i in target])
         translate_one(source, target)
 
-    if comm.rank == 0:
-        trainer.extend(extensions.LogReport(trigger=(1, 'epoch')),
-                       trigger=(1, 'epoch'))
-
-        report = extensions.PrintReport(['epoch',
-                                         'iteration',
-                                         'main/loss',
-                                         'main/perp',
-                                         'validation/main/bleu',
-                                         'elapsed_time'])
-        trainer.extend(report, trigger=(1, 'epoch'))
-
-    comm.mpi_comm.Barrier()
-    if comm.rank == 0:
-        print('start training')
-        sys.stdout.flush()
 
     trainer.run()
-    translate(trainer)
-    if comm.rank == 0:
-        chainer.serializers.save_hdf5(args.model, trainer)
+
+    chainer.serializers.save_hdf5(args.model, trainer)
 
 if __name__ == '__main__':
     main()
