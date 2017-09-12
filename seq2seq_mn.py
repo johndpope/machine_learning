@@ -21,6 +21,7 @@ from chainer import reporter
 from chainer import training
 from chainer.training import extensions
 import chainermn
+import sampleSeq2Seq_data
 
 
 
