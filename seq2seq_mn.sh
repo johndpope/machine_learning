@@ -15,4 +15,4 @@ source ~/.bashrc
 
 
 
-aprun -n 36 -N 36 python seq2seq_mn.py --dict ../../data/chat/model/dict_init.dat --data ../../data/chat/model/chat_init.dat --mode train --model ../../data/chat/model/seq_init/seq.model --out ../../data/chat/outdir  --communicator naive
+aprun -n 36 -N 36 python seq2seq_mn.py --dict ../../data/chat/model/dict_init.dat --data ../../data/chat/model/chat_init.dat --mode train --model ../../data/chat/model/seq_init/seq.model --out ../../data/chat/outdir  --communicator naive --stop 100e
