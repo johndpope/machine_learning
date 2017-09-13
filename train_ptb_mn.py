@@ -191,9 +191,6 @@ def main():
         val = val[:100]
         test = test[:100]
 
-    train_iter = ParallelSequentialIterator(train, args.batchsize)
-    val_iter = ParallelSequentialIterator(val, 1, repeat=False)
-    test_iter = ParallelSequentialIterator(test, 1, repeat=False)
 
 
     # Prepare ChainerMN communicator.
@@ -243,16 +240,12 @@ def main():
 
     # Split and distribute the dataset. Only worker 0 loads the whole dataset.
     # Datasets of worker 0 are evenly split and distributed to all workers.
-    if comm.rank == 0:
-        train, test = chainer.datasets.get_mnist()
-    else:
-        train, test = None, None
-    train = chainermn.scatter_dataset(train, comm, shuffle=True)
-    test = chainermn.scatter_dataset(test, comm, shuffle=True)
+    train = chainermn.scatter_dataset(train, comm)
+    test = chainermn.scatter_dataset(test, comm)
 
-    train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
-    test_iter = chainer.iterators.SerialIterator(test, args.batchsize,
-                                                 repeat=False, shuffle=False)
+    train_iter = ParallelSequentialIterator(train, args.batchsize)
+    val_iter = ParallelSequentialIterator(val, 1, repeat=False)
+    test_iter = ParallelSequentialIterator(test, 1, repeat=False)
 
 
     # Set up a trainer

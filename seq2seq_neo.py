@@ -64,6 +64,14 @@ def read_target(infile, dict):
             target_vocab[item[0]]=int(item[1])
     return target_vocab, target_data
 
+def read_dict(dictfile):
+    target_vocab = {}
+
+    with open(dict,"r") as f:
+        for l in f.readlines():
+            item=l.replace("\n","").split("\t")
+            target_vocab[item[0]]=int(item[1])
+    return target_vocab
 
 def sequence_embed(embed, xs):
     x_len = [len(x) for x in xs]
@@ -350,9 +358,9 @@ def train(args):
             cache_file = os.path.join(args.cache, 'source.pickle')
             source_vocab, source_data = cached_call(cache_file,
                                                     read_source,
-                                                    args.data, args.dict)
+                                                    args.train_data, args.dict)
         else:
-            source_vocab, source_data = read_source(args.data, args.dict)
+            source_vocab, source_data = read_source(args.train_data, args.dict)
         et = time.time()
         print("RD source done. {:.3f} [s]".format(et - bt))
         sys.stdout.flush()
@@ -363,9 +371,9 @@ def train(args):
             cache_file = os.path.join(args.cache, 'target.pickle')
             target_vocab, target_data = cached_call(cache_file,
                                                     read_target,
-                                                    args.data, args.dict)
+                                                    args.train_data, args.dict)
         else:
-            target_vocab, target_data = read_target(args.data, args.dict)
+            target_vocab, target_data = read_target(args.train_data, args.dict)
         et = time.time()
         print("RD target done. {:.3f} [s]".format(et - bt))
         sys.stdout.flush()
@@ -485,104 +493,33 @@ def train(args):
     trainer.run()
 
     if comm.rank == 0:
-        chainer.serializers.save_npz(args.trainer, trainer)
         chainer.serializers.save_npz(args.model, model)
 
 
 def test(args):
-    trainer=None
     model=None
-    chainer.serializers.load_npz(args.trainer, trainer)
     chainer.serializers.load_npz(args.model, model)
 
-    # Prepare ChainerMN communicator
-    if args.gpu:
-        comm = chainermn.create_communicator('hierarchical')
-        dev = comm.intra_rank
-    else:
-        comm = chainermn.create_communicator('naive')
-        dev = -1
+    lines=[]
+    with open(args.test_data,"r") as f:
+        lines=f.readlines()
 
-    if comm.mpi_comm.rank == 0:
-        print('==========================================')
-        print('Num process (COMM_WORLD): {}'.format(MPI.COMM_WORLD.Get_size()))
-        if args.gpu:
-            print('Using GPUs')
-        print('Using {} communicator'.format(args.communicator))
-        print('Num unit: {}'.format(args.unit))
-        print('Num Minibatch-size: {}'.format(args.batchsize))
-        print('==========================================')
-
-        # Rank 0 prepares all data
-    if comm.rank == 0:
-        if args.cache and not os.path.exists(args.cache):
-            os.mkdir(args.cache)
-
-
-        # Read target data
-        bt = time.time()
-        if args.cache:
-            cache_file = os.path.join(args.cache, 'target.pickle')
-            target_vocab, target_data = cached_call(cache_file,
-                                                    read_target,
-                                                    args.data, args.dict)
-        else:
-            target_vocab, target_data = read_target(args.data, args.dict)
-        et = time.time()
-        print("RD target done. {:.3f} [s]".format(et - bt))
-        sys.stdout.flush()
-
-        all_data = [(s, t)
-                    for s, t in target_data
-                    if 0 < len(s) < 50 and 0 < len(t) < 50]
-        print('Filtered training data size: %d' % len(all_data))
-
-        test_data = all_data
-        target_ids = target_vocab
-
-    else:
-        test_data = None
-        target_ids = None
-
-        # Print GPU id
-    for i in range(0, comm.size):
-        if comm.rank == i:
-            print("Rank {} GPU: {}".format(comm.rank, dev))
-        sys.stdout.flush()
-        comm.mpi_comm.Barrier()
-
-        # broadcast id- > word dictionary
-    target_ids = comm.mpi_comm.bcast(target_ids, root=0)
-
+    target_ids = read_dict(args.dict)
     target_words = {i: w for w, i in target_ids.items()}
 
-    if comm.rank == 0:
-        print("target_words : {}".format(len(target_words)))
 
-
-
-
-    test_data = chainermn.scatter_dataset(test_data, comm)
-
-
-    def translate_one(source, target):
+    def translate_one(source):
         words = sampleSeq2Seq_data.wakati_list(source, target_ids, True, False)
         print('# source : ' + source)
         x = numpy.array([int(x) for x in words], "i")
         ys = model.translate([x])[0]
         words = [target_words[y] for y in ys]
         print('#  result : ' + ' '.join(words))
-        print('#  expect : ' + target)
+        #print('#  expect : ' + target)
 
 
-    # @chainer.training.make_extension(trigger=(200, 'iteration'))
-    def translate(trainer):
-        source, target = test_data[numpy.random.choice(len(test_data))]
-        target = ' '.join([target_words.get(i, '') for i in target])
-        translate_one(source, target)
-
-
-    translate(trainer)
+    for line in lines:
+        translate_one(line)
 
 
 def main():
@@ -599,18 +536,17 @@ def main():
                         help="Type of communicator")
     parser.add_argument('--stop', '-s', type=str, default="15e",
                         help='Stop trigger (ex. "500i", "15e")')
-    parser.add_argument('--data', type=str, default='/Volumes/DATA/data/chat/txt/init.txt', help='data file')
-    parser.add_argument('--dict', type=str, default='/Volumes/DATA/data/chat/txt/init.dict')
+    parser.add_argument('--train_data', type=str, default='/Volumes/DATA/data/chat/model/chat_init.dat', help='data file')
+    parser.add_argument('--test_data', type=str, default='/Volumes/DATA/data/chat/model/chat_test.txt', help='plain text file')
+    parser.add_argument('--dict', type=str, default='/Volumes/DATA/data/chat/model/dict_init.dat')
     parser.add_argument('--optimizer', type=str, default="adam()",
                         help="Optimizer and its argument")
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
-    parser.add_argument('--mode', default='train',choices=["train","test"],
+    parser.add_argument('--mode', default='test',choices=["train","test"],
                         help='')
-    parser.add_argument('--model',  default='/Volumes/DATA/data/chat/txt/init.model',
+    parser.add_argument('--model',  default='/Volumes/DATA/data/chat/model/seq_neo.model',
                         help='model file')
-    parser.add_argument('--trainer',  default='/Volumes/DATA/data/chat/txt/init.trainer',
-                        help='trainer file')
 
     args = parser.parse_args()
 
