@@ -17,8 +17,7 @@ import chainer
 from chainer import cuda
 import chainer.functions as F
 import chainer.links as L
-from chainer import reporter
-from chainer import training
+
 from chainer.training import extensions
 import chainermn
 import sampleSeq2Seq_data
@@ -120,10 +119,10 @@ class Seq2seq(chainer.Chain):
         loss = F.sum(F.softmax_cross_entropy(
             self.W(concat_os), concat_ys_out, reduce='no')) / batch
 
-        reporter.report({'loss': loss.data}, self)
+        chainer.reporter.report({'loss': loss.data}, self)
         n_words = concat_ys_out.shape[0]
         perp = self.xp.exp(loss.data * batch / n_words)
-        reporter.report({'perp': perp}, self)
+        chainer.reporter.report({'perp': perp}, self)
         return loss
 
     def translate(self, xs, max_length=100):
@@ -208,7 +207,7 @@ class CalculateBleu(chainer.training.Extension):
         bleu = bleu_score.corpus_bleu(
             references, hypotheses,
             smoothing_function=bleu_score.SmoothingFunction().method1)
-        reporter.report({self.key: bleu})
+        chainer.reporter.report({self.key: bleu})
 
 
 class BleuEvaluator(extensions.Evaluator):
@@ -228,7 +227,7 @@ class BleuEvaluator(extensions.Evaluator):
             references = []
             hypotheses = []
             observation = {}
-            with reporter.report_scope(observation):
+            with chainer.reporter.report_scope(observation):
                 for i in range(0, len(self.test_data), self.batch):
                     src, trg = zip(*self.test_data[i:i + self.batch])
                     references.extend([[t.tolist()] for t in trg])
@@ -242,7 +241,7 @@ class BleuEvaluator(extensions.Evaluator):
                 bleu = bleu_score.corpus_bleu(
                     references, hypotheses,
                     smoothing_function=bleu_score.SmoothingFunction().method1)
-                reporter.report({'bleu': bleu}, self.model)
+                chainer.reporter.report({'bleu': bleu}, self.model)
         et = time.time()
 
         if self.comm is not None:
@@ -328,7 +327,7 @@ def _slices(excp):
     return [(b, min(e, ds)) for b, e in
             ((i * size, (i + 1) * size) for i in range(0, nsplit))]
 
-def train(args):
+def training(args):
     # Prepare ChainerMN communicator
     if args.gpu:
         comm = chainermn.create_communicator('hierarchical')
@@ -466,9 +465,9 @@ def train(args):
     train_iter = chainer.iterators.SerialIterator(train_data,
                                                   args.batchsize,
                                                   shuffle=False)
-    updater = training.StandardUpdater(
+    updater = chainer.training.StandardUpdater(
         train_iter, optimizer, converter=convert, device=dev)
-    trainer = training.Trainer(updater,
+    trainer = chainer.training.Trainer(updater,
                                trigger,
                                out=args.out)
 
@@ -496,7 +495,7 @@ def train(args):
         chainer.serializers.save_npz(args.model, model)
 
 
-def test(args):
+def testing(args):
     model=None
     chainer.serializers.load_npz(args.model, model)
 
@@ -543,7 +542,7 @@ def main():
                         help="Optimizer and its argument")
     parser.add_argument('--out', '-o', default='result',
                         help='Directory to output the result')
-    parser.add_argument('--mode', default='test',choices=["train","test"],
+    parser.add_argument('--mode', default='train',choices=["train","test"],
                         help='')
     parser.add_argument('--model',  default='/Volumes/DATA/data/chat/model/seq_neo.model',
                         help='model file')
@@ -551,9 +550,9 @@ def main():
     args = parser.parse_args()
 
     if args.mode=="test":
-        test(args)
+        testing(args)
     else:
-        train(args)
+        training(args)
 
 
 if __name__ == '__main__':
