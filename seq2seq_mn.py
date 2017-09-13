@@ -539,7 +539,7 @@ def main():
     trainer.run()
     translate(trainer)
     if comm.rank == 0:
-        chainer.serializers.save_hdf5(args.model, trainer)
+        chainer.serializers.save_npz(args.model, trainer)
 
 if __name__ == '__main__':
     main()
