@@ -2,7 +2,7 @@
 #PBS -N train_ptb_mn
 #PBS -j oe 
 #PBS -l select=1:ncpus=36:mpiprocs=36
-#PBS -q SINGLE
+#PBS -q TINY  
 
 # mpi
 
@@ -15,6 +15,4 @@ source ~/.bashrc
 
 
 
-date
-aprun -n 36 -N 36 python train_ptb_mn.py --test  --out ../../data/machine_learning/train_ptb_mn
-date
+aprun -n 36 -N 36 python train_ptb_mn.py --out ../../data/machine_learning/train_ptb_mn

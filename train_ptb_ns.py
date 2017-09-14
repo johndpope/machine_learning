@@ -192,12 +192,11 @@ class BPTTEvaluator(training.extensions.Evaluator):
         it = copy.copy(iterator)
         summary = reporter_module.DictSummary()
 
-        chainer.using_config("volatile","on")
         for batch in it:
             observation = {}
             with reporter_module.report_scope(observation):
                 xs, ts = self.converter(batch, self.device)
-                eval_func([chainer.Variable(x) for x in xs], [chainer.Variable(t) for t in ts])
+                eval_func([chainer.Variable(x, volatile='on') for x in xs], [chainer.Variable(t, volatile='on') for t in ts])
 
             summary.add(observation)
 
@@ -238,10 +237,9 @@ def main():
                         help='Resume the training from snapshot')
     parser.add_argument('--test', action='store_true',default=True,
                         help='Use tiny datasets for quick tests')
+    parser.set_defaults(test=False)
     parser.add_argument('--unit', '-u', type=int, default=650,
                         help='Number of LSTM units in each layer')
-    parser.add_argument('--model', '-m', type=str, default="model.npz",
-                        help='File name of model to save')
     args = parser.parse_args()
 
     # Load the Penn Tree Bank long word sequence dataset
@@ -302,9 +300,6 @@ def main():
     evaluator = BPTTEvaluator(test_iter, eval_model, device=args.gpu)
     result = evaluator()
     print('test perplexity:', np.exp(float(result['main/loss'])))
-
-    # Serialize the final model
-    chainer.serializers.save_npz(args.model, eval_model)
 
 
 if __name__ == '__main__':
