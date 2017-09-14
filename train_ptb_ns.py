@@ -237,9 +237,10 @@ def main():
                         help='Resume the training from snapshot')
     parser.add_argument('--test', action='store_true',default=True,
                         help='Use tiny datasets for quick tests')
-    parser.set_defaults(test=False)
     parser.add_argument('--unit', '-u', type=int, default=650,
                         help='Number of LSTM units in each layer')
+    parser.add_argument('--model', type=str, default="model_ns.npz",
+                        help='model save file name')
     args = parser.parse_args()
 
     # Load the Penn Tree Bank long word sequence dataset
@@ -301,6 +302,7 @@ def main():
     result = evaluator()
     print('test perplexity:', np.exp(float(result['main/loss'])))
 
+    chainer.serializers.save_npz(args.model, eval_model)
 
 if __name__ == '__main__':
     main()

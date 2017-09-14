@@ -236,13 +236,14 @@ def main():
                         help='Directory to output the result')
     parser.add_argument('--resume', '-r', default='',
                         help='Resume the training from snapshot')
-    parser.add_argument('--test', action='store_true',
+    parser.add_argument('--test', action='store_true',default=True
                         help='Use tiny datasets for quick tests')
-    parser.set_defaults(test=False)
     parser.add_argument('--unit', '-u', type=int, default=650,
                         help='Number of LSTM units in each layer')
     parser.add_argument('--communicator', type=str,
-                        default='hierarchical', help='Type of communicator')
+                        default='naive', help='Type of communicator')
+    parser.add_argument('--model', type=str,
+                        default='model.npz', help='save filename')
 
     args = parser.parse_args()
 
@@ -348,6 +349,8 @@ def main():
     result = evaluator()
     print('test perplexity:', np.exp(float(result['main/loss'])))
 
+    if comm.rank == 0:
+        chainer.serializers.save_npz(args.model, eval_model)
 
 if __name__ == '__main__':
     main()

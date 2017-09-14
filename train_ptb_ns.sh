@@ -15,5 +15,5 @@ source ~/.bashrc
 
 
 date
-aprun -n 1 -N 1 python train_ptb_ns.py --test --out ../../data/machine_learning/train_ptb_ns
+aprun -n 1 -N 1 python train_ptb_ns.py --test True --out ../../data/machine_learning/train_ptb_ns
 date

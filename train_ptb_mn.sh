@@ -15,5 +15,5 @@ source ~/.bashrc
 
 
 date
-aprun -n 36 -N 36 python train_ptb_mn.py --test --out ../../data/machine_learning/train_ptb_mn
+aprun -n 36 -N 36 python train_ptb_mn.py --test True --out ../../data/machine_learning/train_ptb_mn
 date
