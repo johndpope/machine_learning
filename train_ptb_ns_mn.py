@@ -20,7 +20,7 @@ from chainer import training
 from chainer.training import extensions
 from chainer import reporter as reporter_module
 import chainermn
-
+from mpi4py import MPI
 
 # Definition of a recurrent net for language modeling
 class RNNForLM(chainer.Chain):
@@ -252,7 +252,7 @@ def main():
 
     # Prepare ChainerMN communicator.
 
-    if args.gpu:
+    if args.gpu>=0:
         if args.communicator == 'naive':
             print("Error: 'naive' communicator does not support GPU.\n")
             exit(-1)
