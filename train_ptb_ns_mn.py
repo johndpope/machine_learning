@@ -236,7 +236,7 @@ def main():
                         help='Directory to output the result')
     parser.add_argument('--resume', '-r', default='',
                         help='Resume the training from snapshot')
-    parser.add_argument('--test', action='store_true',default=True
+    parser.add_argument('--test', action='store_true',default=True,
                         help='Use tiny datasets for quick tests')
     parser.add_argument('--unit', '-u', type=int, default=650,
                         help='Number of LSTM units in each layer')
