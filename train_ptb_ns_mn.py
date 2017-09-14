@@ -193,11 +193,12 @@ class BPTTEvaluator(training.extensions.Evaluator):
         it = copy.copy(iterator)
         summary = reporter_module.DictSummary()
 
+        chainer.using_config("volatile","on")
         for batch in it:
             observation = {}
             with reporter_module.report_scope(observation):
                 xs, ts = self.converter(batch, self.device)
-                eval_func([chainer.Variable(x, volatile='on') for x in xs], [chainer.Variable(t, volatile='on') for t in ts])
+                eval_func([chainer.Variable(x) for x in xs], [chainer.Variable(t) for t in ts])
 
             summary.add(observation)
 
