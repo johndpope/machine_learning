@@ -269,7 +269,7 @@ def main():
     if comm.mpi_comm.rank == 0:
         print('==========================================')
         print('Num process (COMM_WORLD): {}'.format(MPI.COMM_WORLD.Get_size()))
-        if args.gpu:
+        if args.gpu>=0:
             print('Using GPUs')
         print('Using {} communicator'.format(args.communicator))
         print('Num unit: {}'.format(args.unit))
@@ -279,24 +279,25 @@ def main():
 
     # Split and distribute the dataset. Only worker 0 loads the whole dataset.
     # Datasets of worker 0 are evenly split and distributed to all workers.
-    if comm.rank == 0:
-        # Load the Penn Tree Bank long word sequence dataset
-        train, val, test = chainer.datasets.get_ptb_words()
-
-        if args.test:
-            train = train[:100]
-            val = val[:100]
-            test = test[:100]
-    else:
-        train, val, test = None, None, None
-    train = chainermn.scatter_dataset(train, comm, shuffle=True)
-    test = chainermn.scatter_dataset(test, comm, shuffle=True)
+    # Load the Penn Tree Bank long word sequence dataset
+    train, val, test = chainer.datasets.get_ptb_words()
     n_vocab = max(train) + 1  # train is just an array of integers
+    print('#vocab =', n_vocab)
+    if args.test:
+        train = train[:100]
+        val = val[:100]
+        test = test[:100]
+
+    if comm.rank != 0:
+        train, val, test = None, None, None
+    chainermn.scatter_dataset(train, comm, shuffle=True)
+    chainermn.scatter_dataset(test, comm, shuffle=True)
 
 
     train_iter = ParallelSequentialIterator(train, args.batchsize, args.bproplen)
     val_iter = ParallelSequentialIterator(val, 1, args.bproplen, repeat=False)
     test_iter = ParallelSequentialIterator(test, 1, args.bproplen, repeat=False)
+
 
     # Prepare an RNNLM model
     rnn = RNNForLM(n_vocab, args.unit)

@@ -248,11 +248,11 @@ def main():
     train, val, test = chainer.datasets.get_ptb_words()
     n_vocab = max(train) + 1  # train is just an array of integers
     print('#vocab =', n_vocab)
-
     if args.test:
         train = train[:100]
         val = val[:100]
         test = test[:100]
+
 
     train_iter = ParallelSequentialIterator(train, args.batchsize, args.bproplen)
     val_iter = ParallelSequentialIterator(val, 1, args.bproplen, repeat=False)
@@ -263,7 +263,7 @@ def main():
     model = L.Classifier(rnn, lossfun=sum_softmax_cross_entropy)
     model.compute_accuracy = False  # we only want the perplexity
     if args.gpu >= 0:
-        chainer.cuda.get_device(args.gpu).use()  # make the GPU current
+        chainer.cuda.get_device_from_id(args.gpu).use()  # make the GPU current
         model.to_gpu()
 
     # Set up an optimizer
