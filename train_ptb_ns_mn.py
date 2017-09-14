@@ -236,13 +236,14 @@ def main():
                         help='Directory to output the result')
     parser.add_argument('--resume', '-r', default='',
                         help='Resume the training from snapshot')
-    parser.add_argument('--test', action='store_true',
+    parser.add_argument('--test', action='store_true', default=False,
                         help='Use tiny datasets for quick tests')
-    parser.set_defaults(test=False)
     parser.add_argument('--unit', '-u', type=int, default=650,
                         help='Number of LSTM units in each layer')
     parser.add_argument('--communicator', type=str,
-                        default='hierarchical', help='Type of communicator')
+                        default='naive', help='Type of communicator')
+    parser.add_argument('--model', type=str,
+                        default='model_mn.npz', help='saved file name of model')
 
     args = parser.parse_args()
 
@@ -251,7 +252,7 @@ def main():
 
     # Prepare ChainerMN communicator.
 
-    if args.gpu:
+    if args.gpu>=0:
         if args.communicator == 'naive':
             print("Error: 'naive' communicator does not support GPU.\n")
             exit(-1)
@@ -267,7 +268,7 @@ def main():
     if comm.mpi_comm.rank == 0:
         print('==========================================')
         print('Num process (COMM_WORLD): {}'.format(MPI.COMM_WORLD.Get_size()))
-        if args.gpu:
+        if args.gpu>=0:
             print('Using GPUs')
         print('Using {} communicator'.format(args.communicator))
         print('Num unit: {}'.format(args.unit))
@@ -347,6 +348,10 @@ def main():
     evaluator = BPTTEvaluator(test_iter, eval_model, device=args.gpu)
     result = evaluator()
     print('test perplexity:', np.exp(float(result['main/loss'])))
+
+    if comm.rank == 0:
+        # Serialize the final model
+        chainer.serializers.save_npz(args.model, eval_model)
 
 
 if __name__ == '__main__':
