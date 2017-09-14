@@ -305,5 +305,6 @@ def main():
 
     chainer.serializers.save_npz(args.model, eval_model)
 
+
 if __name__ == '__main__':
     main()
